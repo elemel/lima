@@ -8,27 +8,26 @@ function cloneCircleImage(image)
   return clone
 end
 
-function generateCircle()
-  local x = love.math.random()
-  local y = love.math.random()
-  local radius = love.math.random()
+function randomByte()
+  return love.math.random(0, 255)
+end
 
-  local red = love.math.random()
-  local green = love.math.random()
-  local blue = love.math.random()
-  local alpha = love.math.random()
+function generateCircle()
+  local x = randomByte()
+  local y = randomByte()
+  local radius = randomByte()
+
+  local red = randomByte()
+  local green = randomByte()
+  local blue = randomByte()
+  local alpha = randomByte()
 
   return {x, y, radius, red, green, blue, alpha}
 end
 
-function clamp(x, x1, x2)
-  return math.min(math.max(x, x1), x2)
-end
-
 function mutateCircle(circle)
   local i = love.math.random(1, #circle)
-  local stddev = 1 / 16 * love.math.random()
-  circle[i] = clamp(love.math.randomNormal(stddev, circle[i]), 0, 1)
+  circle[i] = randomByte()
 end
 
 function mutateCircleImage(image)
@@ -86,8 +85,8 @@ local function drawCircleImageToCanvas(image, canvas)
 
   for i, circle in ipairs(image) do
     local x, y, radius, red, green, blue, alpha = unpack(circle)
-    love.graphics.setColor(red, green, blue, alpha)
-    love.graphics.circle("fill", x, y, radius)
+    love.graphics.setColor(red / 255, green / 255, blue / 255, alpha / 255)
+    love.graphics.circle("fill", x / 255, y / 255, radius / 255)
   end
 
   love.graphics.setCanvas()
