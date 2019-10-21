@@ -1,3 +1,23 @@
+function saveCircleImage(image, filename)
+  local file = io.open(filename, "w")
+  file:write("return {\n")
+
+  for i, circle in ipairs(image) do
+    local x, y, diameter, red, green, blue, alpha = unpack(circle)
+    file:write("  {" ..
+      x .. ", " ..
+      y .. ", " ..
+      diameter .. ", " ..
+      red .. ", " ..
+      green .. ", " ..
+      blue .. ", " ..
+      alpha .. "},\n")
+  end
+
+  file:write("}\n")
+  file:close()
+end
+
 function cloneCircleImage(image)
   local clone = {}
 
@@ -15,65 +35,86 @@ end
 function generateCircle()
   local x = randomByte()
   local y = randomByte()
-  local radius = randomByte()
+  local diameter = randomByte()
 
   local red = randomByte()
   local green = randomByte()
   local blue = randomByte()
   local alpha = randomByte()
 
-  return {x, y, radius, red, green, blue, alpha}
+  return {x, y, diameter, red, green, blue, alpha}
 end
 
-function mutateCircle(circle)
+function generateCircleImage(size)
+  local image = {}
+
+  for i = 1, size do
+    image[i] = generateCircle()
+  end
+
+  return image
+end
+
+function mutateCircleByte(circle)
   local i = love.math.random(1, #circle)
   circle[i] = randomByte()
 end
 
+function mutateCircleBit(circle)
+  local i = love.math.random(1, #circle)
+  local j = love.math.random(0, 7)
+  circle[i] = bit.bxor(circle[i], bit.lshift(1, j))
+end
+
 function mutateCircleImage(image)
-  local i = love.math.random(1, 16)
+  local i = love.math.random(1, 4)
 
   if i == 1 then
-    -- Add circle
-    if #image < 65536 then
-      local j = love.math.random(1, #image + 1)
-      local circle = generateCircle()
-      table.insert(image, j, circle)
-    end
-  elseif i == 2 then
-    -- Remove circle
-    if #image >= 1 then
-      local j = love.math.random(1, #image)
-      table.remove(image, j)
-    end
-  elseif i == 3 then
-    -- Replace circle
-    if #image >= 1 then
-      local j = love.math.random(1, #image)
+    -- Replace image
+    for j = 1, #image do
       image[j] = generateCircle()
     end
-  elseif i == 4 then
-    -- Swap circles
-    if #image >= 2 then
-      local j = love.math.random(1, #image - 1)
-      local k = love.math.random(j + 1, #image)
-      image[j], image[k] = image[k], image[j]
-    end
+  elseif i == 2 then
+    -- Replace circle
+    local j = love.math.random(1, #image)
+    local k = love.math.random(1, #image)
+    local circle = generateCircle()
+    table.remove(image, j)
+    table.insert(image, k, circle)
+  elseif i == 3 then
+    -- Replace circle byte
+    local j = love.math.random(1, #image)
+    mutateCircleByte(image[j])
   else
-    -- Mutate circle
-    if #image >= 1 then
-      local j = love.math.random(1, #image)
-      mutateCircle(image[j])
-    end
+    -- Replace circle bit
+    local j = love.math.random(1, #image)
+    mutateCircleBit(image[j])
   end
 end
 
-function love.load()
-  love.window.setTitle("Straw")
+function love.load(arg)
+  if #arg ~= 3 or arg[1] ~= "evolve" then
+    print("Usage: love . evolve <source> <target>")
+    love.event.quit(1)
+    return
+  end
+
+  _, sourceFilename, targetFilename = unpack(arg)
+
+  love.window.setTitle("Lima")
   love.window.setMode(1024, 512)
-  parent = {}
-  referenceImageData = love.image.newImageData("strawberries-512.png")
+  referenceImageData = love.image.newImageData(sourceFilename)
   referenceImage = love.graphics.newImage(referenceImageData)
+
+  print("Loading...")
+  local success, result = pcall(dofile, targetFilename)
+
+  if success then
+    parent = result
+  else
+    print("Loading error: " .. result)
+    parent = generateCircleImage(256)
+  end
 end
 
 local function drawCircleImageToCanvas(image, canvas)
@@ -84,9 +125,9 @@ local function drawCircleImageToCanvas(image, canvas)
   love.graphics.scale(width, height)
 
   for i, circle in ipairs(image) do
-    local x, y, radius, red, green, blue, alpha = unpack(circle)
+    local x, y, diameter, red, green, blue, alpha = unpack(circle)
     love.graphics.setColor(red / 255, green / 255, blue / 255, alpha / 255)
-    love.graphics.circle("fill", x / 255, y / 255, radius / 255)
+    love.graphics.circle("fill", x / 255, y / 255, 0.5 * diameter / 255)
   end
 
   love.graphics.setCanvas()
@@ -119,6 +160,7 @@ function love.draw()
     local parentImageData = canvas:newImageData()
     parentFitness = getDistance(parentImageData, referenceImageData)
     parentImage = love.graphics.newImage(parentImageData)
+    print("Fitness: " .. parentFitness)
   end
 
   love.graphics.reset()
@@ -139,5 +181,15 @@ function love.draw()
     parent = child
     parentFitness = childFitness
     parentImage = love.graphics.newImage(childImageData)
+
+    print("Fitness: " .. parentFitness)
+    saveCircleImage(parent, targetFilename)
+  end
+end
+
+function love.quit()
+  if parent and targetFilename then
+    print("Saving...")
+    saveCircleImage(parent, targetFilename)
   end
 end
