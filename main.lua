@@ -1,17 +1,35 @@
+local band = bit.band
+local bor = bit.bor
+local lshift = bit.lshift
+local random = love.math.random
+local rshift = bit.rshift
+local sqrt = math.sqrt
+
+function splitByte(byte)
+  local upperHalf = rshift(band(byte, 0xf0), 4)
+  local lowerHalf = band(byte, 0xf)
+
+  return upperHalf, lowerHalf
+end
+
+function joinByte(upperHalf, lowerHalf)
+  upperHalf = band(upperHalf, 0xf)
+  lowerHalf = band(lowerHalf, 0xf)
+
+  return bor(lshift(upperHalf, 4), lowerHalf)
+end
+
+function loadScene(filename)
+  local success, result = pcall(dofile, targetFilename)
+  return success, result
+end
+
 function saveScene(scene, filename)
   local file = io.open(filename, "w")
   file:write("return {\n")
 
   for i, layer in ipairs(scene) do
-    local x, y, diameter, red, green, blue, alpha = unpack(layer)
-    file:write("  {" ..
-      x .. ", " ..
-      y .. ", " ..
-      diameter .. ", " ..
-      red .. ", " ..
-      green .. ", " ..
-      blue .. ", " ..
-      alpha .. "},\n")
+    file:write("  {" .. table.concat(layer, ", ") .. "},\n")
   end
 
   file:write("}\n")
@@ -28,21 +46,31 @@ function cloneScene(scene)
   return clone
 end
 
-function randomByte()
-  return love.math.random(0, 255)
+function generateBoolean()
+  return random(0, 1) == 1
+end
+
+function generateByte()
+  return random(0, 255)
+end
+
+function generateSize()
+  local size = lshift(1, random(0, 7))
+  local mask = size - 1
+  local jitter = band(generateByte(), mask)
+  return bor(size, jitter)
 end
 
 function generateLayer()
-  local x = randomByte()
-  local y = randomByte()
-  local diameter = randomByte()
+  local x = generateByte()
+  local y = generateByte()
 
-  local red = randomByte()
-  local green = randomByte()
-  local blue = randomByte()
-  local alpha = randomByte()
+  local diameter = generateSize()
 
-  return {x, y, diameter, red, green, blue, alpha}
+  local redGreen = generateByte()
+  local blueAlpha = generateByte()
+
+  return {x, y, diameter, redGreen, blueAlpha}
 end
 
 function generateScene(size)
@@ -55,40 +83,32 @@ function generateScene(size)
   return scene
 end
 
-function mutateLayerByte(layer)
-  local i = love.math.random(1, #layer)
-  layer[i] = randomByte()
-end
+function mutateLayer(layer)
+  local i = random(1, #layer)
 
-function mutateLayerBit(layer)
-  local i = love.math.random(1, #layer)
-  local j = love.math.random(0, 7)
-  layer[i] = bit.bxor(layer[i], bit.lshift(1, j))
+  local upperHalf, lowerHalf = splitByte(layer[i])
+
+  if generateBoolean() then
+    upperHalf = generateByte()
+  else
+    lowerHalf = generateByte()
+  end
+
+  layer[i] = joinByte(upperHalf, lowerHalf)
 end
 
 function mutateScene(scene)
-  local i = love.math.random(1, 4)
-
-  if i == 1 then
-    -- Replace scene
-    for j = 1, #scene do
-      scene[j] = generateLayer()
-    end
-  elseif i == 2 then
+  if generateBoolean() then
     -- Replace layer
-    local j = love.math.random(1, #scene)
-    local k = love.math.random(1, #scene)
+    local i = random(1, #scene)
+    local j = random(1, #scene)
     local layer = generateLayer()
-    table.remove(scene, j)
-    table.insert(scene, k, layer)
-  elseif i == 3 then
-    -- Replace layer byte
-    local j = love.math.random(1, #scene)
-    mutateLayerByte(scene[j])
+    table.remove(scene, i)
+    table.insert(scene, j, layer)
   else
-    -- Replace layer bit
-    local j = love.math.random(1, #scene)
-    mutateLayerBit(scene[j])
+    -- Mutate layer
+    local i = random(1, #scene)
+    mutateLayer(scene[i])
   end
 end
 
@@ -107,7 +127,7 @@ function love.load(arg)
   referenceImage = love.graphics.newImage(referenceImageData)
 
   print("Loading...")
-  local success, result = pcall(dofile, targetFilename)
+  local success, result = loadScene(targetFilename)
 
   if success then
     parent = result
@@ -125,12 +145,20 @@ local function drawSceneToCanvas(scene, canvas)
   love.graphics.scale(width, height)
 
   for i, layer in ipairs(scene) do
-    local x, y, diameter, red, green, blue, alpha = unpack(layer)
-    love.graphics.setColor(red / 255, green / 255, blue / 255, alpha / 255)
+    local x, y, diameter, redGreen, blueAlpha = unpack(layer)
+
+    local red, green = splitByte(redGreen)
+    local blue, alpha = splitByte(blueAlpha)
+
+    love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
     love.graphics.circle("fill", x / 255, y / 255, 0.5 * diameter / 255)
   end
 
   love.graphics.setCanvas()
+end
+
+local function rms4(x, y, z, w)
+  return sqrt(0.25 * (x * x + y * y + z * z + w * w))
 end
 
 local function getDistance(image1, image2)
@@ -145,7 +173,7 @@ local function getDistance(image1, image2)
       local r1, g1, b1, a1 = image1:getPixel(x, y)
       local r2, g2, b2, a2 = image2:getPixel(x, y)
 
-      distance = (0.25 * ((r2 - r1) ^ 2 + (g2 - g1) ^ 2 + (b2 - b1) ^ 2 + (a2 - a1) ^ 2)) ^ 0.5
+      local distance = rms4(r2 - r1, g2 - g1, b2 - b1, a2 - a1)
       totalDistance = totalDistance + distance
     end
   end
