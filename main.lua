@@ -1,9 +1,9 @@
-function saveCircleImage(image, filename)
+function saveScene(scene, filename)
   local file = io.open(filename, "w")
   file:write("return {\n")
 
-  for i, circle in ipairs(image) do
-    local x, y, diameter, red, green, blue, alpha = unpack(circle)
+  for i, layer in ipairs(scene) do
+    local x, y, diameter, red, green, blue, alpha = unpack(layer)
     file:write("  {" ..
       x .. ", " ..
       y .. ", " ..
@@ -18,11 +18,11 @@ function saveCircleImage(image, filename)
   file:close()
 end
 
-function cloneCircleImage(image)
+function cloneScene(scene)
   local clone = {}
 
-  for i, circle in ipairs(image) do
-    clone[i] = {unpack(circle)}
+  for i, layer in ipairs(scene) do
+    clone[i] = {unpack(layer)}
   end
 
   return clone
@@ -32,7 +32,7 @@ function randomByte()
   return love.math.random(0, 255)
 end
 
-function generateCircle()
+function generateLayer()
   local x = randomByte()
   local y = randomByte()
   local diameter = randomByte()
@@ -45,50 +45,50 @@ function generateCircle()
   return {x, y, diameter, red, green, blue, alpha}
 end
 
-function generateCircleImage(size)
-  local image = {}
+function generateScene(size)
+  local scene = {}
 
   for i = 1, size do
-    image[i] = generateCircle()
+    scene[i] = generateLayer()
   end
 
-  return image
+  return scene
 end
 
-function mutateCircleByte(circle)
-  local i = love.math.random(1, #circle)
-  circle[i] = randomByte()
+function mutateLayerByte(layer)
+  local i = love.math.random(1, #layer)
+  layer[i] = randomByte()
 end
 
-function mutateCircleBit(circle)
-  local i = love.math.random(1, #circle)
+function mutateLayerBit(layer)
+  local i = love.math.random(1, #layer)
   local j = love.math.random(0, 7)
-  circle[i] = bit.bxor(circle[i], bit.lshift(1, j))
+  layer[i] = bit.bxor(layer[i], bit.lshift(1, j))
 end
 
-function mutateCircleImage(image)
+function mutateScene(scene)
   local i = love.math.random(1, 4)
 
   if i == 1 then
-    -- Replace image
-    for j = 1, #image do
-      image[j] = generateCircle()
+    -- Replace scene
+    for j = 1, #scene do
+      scene[j] = generateLayer()
     end
   elseif i == 2 then
-    -- Replace circle
-    local j = love.math.random(1, #image)
-    local k = love.math.random(1, #image)
-    local circle = generateCircle()
-    table.remove(image, j)
-    table.insert(image, k, circle)
+    -- Replace layer
+    local j = love.math.random(1, #scene)
+    local k = love.math.random(1, #scene)
+    local layer = generateLayer()
+    table.remove(scene, j)
+    table.insert(scene, k, layer)
   elseif i == 3 then
-    -- Replace circle byte
-    local j = love.math.random(1, #image)
-    mutateCircleByte(image[j])
+    -- Replace layer byte
+    local j = love.math.random(1, #scene)
+    mutateLayerByte(scene[j])
   else
-    -- Replace circle bit
-    local j = love.math.random(1, #image)
-    mutateCircleBit(image[j])
+    -- Replace layer bit
+    local j = love.math.random(1, #scene)
+    mutateLayerBit(scene[j])
   end
 end
 
@@ -113,19 +113,19 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generateCircleImage(256)
+    parent = generateScene(256)
   end
 end
 
-local function drawCircleImageToCanvas(image, canvas)
+local function drawSceneToCanvas(scene, canvas)
   love.graphics.setCanvas(canvas)
   love.graphics.clear()
   love.graphics.setBlendMode("alpha")
   local width, height = canvas:getDimensions()
   love.graphics.scale(width, height)
 
-  for i, circle in ipairs(image) do
-    local x, y, diameter, red, green, blue, alpha = unpack(circle)
+  for i, layer in ipairs(scene) do
+    local x, y, diameter, red, green, blue, alpha = unpack(layer)
     love.graphics.setColor(red / 255, green / 255, blue / 255, alpha / 255)
     love.graphics.circle("fill", x / 255, y / 255, 0.5 * diameter / 255)
   end
@@ -156,7 +156,7 @@ end
 function love.draw()
   if not canvas then
     canvas = love.graphics.newCanvas(512, 512)
-    drawCircleImageToCanvas(parent, canvas)
+    drawSceneToCanvas(parent, canvas)
     local parentImageData = canvas:newImageData()
     parentFitness = getDistance(parentImageData, referenceImageData)
     parentImage = love.graphics.newImage(parentImageData)
@@ -170,10 +170,10 @@ function love.draw()
   love.graphics.setBlendMode("alpha", "premultiplied")
   love.graphics.draw(parentImage, 512, 0)
 
-  local child = cloneCircleImage(parent)
-  mutateCircleImage(child)
+  local child = cloneScene(parent)
+  mutateScene(child)
 
-  drawCircleImageToCanvas(child, canvas)
+  drawSceneToCanvas(child, canvas)
   local childImageData = canvas:newImageData()
   local childFitness = getDistance(childImageData, referenceImageData)
 
@@ -183,13 +183,13 @@ function love.draw()
     parentImage = love.graphics.newImage(childImageData)
 
     print("Fitness: " .. parentFitness)
-    saveCircleImage(parent, targetFilename)
+    saveScene(parent, targetFilename)
   end
 end
 
 function love.quit()
   if parent and targetFilename then
     print("Saving...")
-    saveCircleImage(parent, targetFilename)
+    saveScene(parent, targetFilename)
   end
 end
