@@ -1,6 +1,7 @@
 local band = bit.band
 local bor = bit.bor
 local lshift = bit.lshift
+local pi = math.pi
 local random = love.math.random
 local rshift = bit.rshift
 local sqrt = math.sqrt
@@ -21,12 +22,19 @@ end
 
 function loadScene(filename)
   local success, result = pcall(dofile, targetFilename)
+
+  if success then
+    result.brush = result.brush or "circle"
+  end
+
   return success, result
 end
 
 function saveScene(scene, filename)
   local file = io.open(filename, "w")
   file:write("return {\n")
+  file:write("  brush = \"" .. scene.brush .. "\",\n")
+  file:write("\n")
   file:write("  layers = {\n")
 
   for i, layer in ipairs(scene.layers) do
@@ -45,7 +53,10 @@ function cloneScene(scene)
     layers[i] = {unpack(layer)}
   end
 
-  return {layers = layers}
+  return {
+    brush = scene.brush,
+    layers = layers,
+  }
 end
 
 function generateBoolean()
@@ -63,26 +74,44 @@ function generateSize()
   return bor(size, jitter)
 end
 
-function generateLayer()
-  local x = generateByte()
-  local y = generateByte()
+function generateLayer(brush)
+  if brush == "circle" then
+    local x = generateByte()
+    local y = generateByte()
 
-  local diameter = generateSize()
+    local size = generateSize()
 
-  local redGreen = generateByte()
-  local blueAlpha = generateByte()
+    local redGreen = generateByte()
+    local blueAlpha = generateByte()
 
-  return {x, y, diameter, redGreen, blueAlpha}
+    return {x, y, size, redGreen, blueAlpha}
+  elseif brush == "square" then
+    local x = generateByte()
+    local y = generateByte()
+
+    local angle = generateByte()
+    local size = generateSize()
+
+    local redGreen = generateByte()
+    local blueAlpha = generateByte()
+
+    return {x, y, angle, size, redGreen, blueAlpha}
+  else
+    assert(false)
+  end
 end
 
-function generateScene(size)
+function generateScene(brush, size)
   local layers = {}
 
   for i = 1, size do
-    layers[i] = generateLayer()
+    layers[i] = generateLayer(brush)
   end
 
-  return {layers = layers}
+  return {
+    brush = brush,
+    layers = layers,
+  }
 end
 
 function mutateLayer(layer)
@@ -104,7 +133,7 @@ function mutateScene(scene)
     -- Replace layer
     local i = random(1, #scene.layers)
     local j = random(1, #scene.layers)
-    local layer = generateLayer()
+    local layer = generateLayer(scene.brush)
     table.remove(scene.layers, i)
     table.insert(scene.layers, j, layer)
   else
@@ -135,7 +164,7 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generateScene(256)
+    parent = generateScene("square", 256)
   end
 end
 
@@ -146,14 +175,37 @@ local function drawSceneToCanvas(scene, canvas)
   local width, height = canvas:getDimensions()
   love.graphics.scale(width, height)
 
-  for i, layer in ipairs(scene.layers) do
-    local x, y, diameter, redGreen, blueAlpha = unpack(layer)
+  if scene.brush == "circle" then
+    for i, layer in ipairs(scene.layers) do
+      local x, y, size, redGreen, blueAlpha = unpack(layer)
 
-    local red, green = splitByte(redGreen)
-    local blue, alpha = splitByte(blueAlpha)
+      local red, green = splitByte(redGreen)
+      local blue, alpha = splitByte(blueAlpha)
 
-    love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
-    love.graphics.circle("fill", x / 255, y / 255, 0.5 * diameter / 255)
+      love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
+      love.graphics.circle("fill", x / 255, y / 255, 0.5 * size / 255)
+    end
+  elseif scene.brush == "square" then
+    for i, layer in ipairs(scene.layers) do
+      local x, y, angle, size, redGreen, blueAlpha = unpack(layer)
+
+      local red, green = splitByte(redGreen)
+      local blue, alpha = splitByte(blueAlpha)
+
+      love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
+
+      love.graphics.push()
+      love.graphics.rotate(2 * pi * angle / 256)
+
+      love.graphics.rectangle(
+        "fill",
+        x / 255 - 0.5 * size / 255,
+        y / 255 - 0.5 * size / 255,
+        size / 255,
+        size / 255)
+
+      love.graphics.pop()
+    end
   end
 
   love.graphics.setCanvas()
