@@ -1,9 +1,12 @@
 local band = bit.band
 local bor = bit.bor
+local cos = math.cos
+local floor = math.floor
 local lshift = bit.lshift
 local pi = math.pi
 local random = love.math.random
 local rshift = bit.rshift
+local sin = math.sin
 local sqrt = math.sqrt
 
 function splitByte(byte)
@@ -96,6 +99,42 @@ function generateLayer(brush)
     local blueAlpha = generateByte()
 
     return {x, y, angle, size, redGreen, blueAlpha}
+  elseif brush == "shadedTriangle" then
+    local x = random()
+    local y = random()
+
+    local angle1 = 2 * pi * random()
+    local angle2 = angle1 + 2 * pi / 3
+    local angle3 = angle1 + 4 * pi / 3
+
+    local radius = 0.5 * generateSize() / 255
+
+    local x1 = x + radius * cos(angle1)
+    local y1 = y + radius * sin(angle1)
+
+    local x2 = x + radius * cos(angle2)
+    local y2 = y + radius * sin(angle2)
+
+    local x3 = x + radius * cos(angle3)
+    local y3 = y + radius * sin(angle3)
+
+    x1 = floor(0.5 * (x1 + 0.5) * 256)
+    y1 = floor(0.5 * (y1 + 0.5) * 256)
+
+    x2 = floor(0.5 * (x2 + 0.5) * 256)
+    y2 = floor(0.5 * (y2 + 0.5) * 256)
+
+    x3 = floor(0.5 * (x3 + 0.5) * 256)
+    y3 = floor(0.5 * (y3 + 0.5) * 256)
+
+    local redGreen = generateByte()
+    local blueAlpha = generateByte()
+
+    return {
+      x1, y1, redGreen, blueAlpha,
+      x2, y2, redGreen, blueAlpha,
+      x3, y3, redGreen, blueAlpha,
+    }
   else
     assert(false)
   end
@@ -164,8 +203,10 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generateScene("square", 256)
+    parent = generateScene("shadedTriangle", 256)
   end
+
+  triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
 end
 
 local function drawSceneToCanvas(scene, canvas)
@@ -206,6 +247,49 @@ local function drawSceneToCanvas(scene, canvas)
 
       love.graphics.pop()
     end
+  elseif scene.brush == "shadedTriangle" then
+    local vertices = {}
+
+    for i, layer in ipairs(scene.layers) do
+      local x1, y1, redGreen1, blueAlpha1,
+        x2, y2, redGreen2, blueAlpha2,
+        x3, y3, redGreen3, blueAlpha3 = unpack(layer)
+
+      x1 = 2 * x1 / 255 - 0.5
+      y1 = 2 * y1 / 255 - 0.5
+
+      x2 = 2 * x2 / 255 - 0.5
+      y2 = 2 * y2 / 255 - 0.5
+
+      x3 = 2 * x3 / 255 - 0.5
+      y3 = 2 * y3 / 255 - 0.5
+
+      local red1, green1 = splitByte(redGreen1)
+      local blue1, alpha1 = splitByte(blueAlpha1)
+
+      local red2, green2 = splitByte(redGreen2)
+      local blue2, alpha2 = splitByte(blueAlpha2)
+
+      local red3, green3 = splitByte(redGreen3)
+      local blue3, alpha3 = splitByte(blueAlpha3)
+
+      table.insert(
+        vertices,
+        {x1, y1, 0, 0, red1 / 15, green1 / 15, blue1 / 15, alpha1 / 15})
+
+      table.insert(
+        vertices,
+        {x2, y2, 0, 0, red2 / 15, green2 / 15, blue2 / 15, alpha2 / 15})
+
+      table.insert(
+        vertices,
+        {x3, y3, 0, 0, red3 / 15, green3 / 15, blue3 / 15, alpha3 / 15})
+    end
+
+    triangleMesh:setVertices(vertices)
+    love.graphics.draw(triangleMesh)
+  else
+    assert(false)
   end
 
   love.graphics.setCanvas()
