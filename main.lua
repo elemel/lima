@@ -27,23 +27,25 @@ end
 function saveScene(scene, filename)
   local file = io.open(filename, "w")
   file:write("return {\n")
+  file:write("  layers = {\n")
 
-  for i, layer in ipairs(scene) do
-    file:write("  {" .. table.concat(layer, ", ") .. "},\n")
+  for i, layer in ipairs(scene.layers) do
+    file:write("    {" .. table.concat(layer, ", ") .. "},\n")
   end
 
+  file:write("  },\n")
   file:write("}\n")
   file:close()
 end
 
 function cloneScene(scene)
-  local clone = {}
+  local layers = {}
 
-  for i, layer in ipairs(scene) do
-    clone[i] = {unpack(layer)}
+  for i, layer in ipairs(scene.layers) do
+    layers[i] = {unpack(layer)}
   end
 
-  return clone
+  return {layers = layers}
 end
 
 function generateBoolean()
@@ -74,13 +76,13 @@ function generateLayer()
 end
 
 function generateScene(size)
-  local scene = {}
+  local layers = {}
 
   for i = 1, size do
-    scene[i] = generateLayer()
+    layers[i] = generateLayer()
   end
 
-  return scene
+  return {layers = layers}
 end
 
 function mutateLayer(layer)
@@ -100,15 +102,15 @@ end
 function mutateScene(scene)
   if generateBoolean() then
     -- Replace layer
-    local i = random(1, #scene)
-    local j = random(1, #scene)
+    local i = random(1, #scene.layers)
+    local j = random(1, #scene.layers)
     local layer = generateLayer()
-    table.remove(scene, i)
-    table.insert(scene, j, layer)
+    table.remove(scene.layers, i)
+    table.insert(scene.layers, j, layer)
   else
     -- Mutate layer
-    local i = random(1, #scene)
-    mutateLayer(scene[i])
+    local i = random(1, #scene.layers)
+    mutateLayer(scene.layers[i])
   end
 end
 
@@ -144,7 +146,7 @@ local function drawSceneToCanvas(scene, canvas)
   local width, height = canvas:getDimensions()
   love.graphics.scale(width, height)
 
-  for i, layer in ipairs(scene) do
+  for i, layer in ipairs(scene.layers) do
     local x, y, diameter, redGreen, blueAlpha = unpack(layer)
 
     local red, green = splitByte(redGreen)
