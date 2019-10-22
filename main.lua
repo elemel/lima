@@ -135,6 +135,18 @@ function generateLayer(brush)
       x2, y2, redGreen, blueAlpha,
       x3, y3, redGreen, blueAlpha,
     }
+  elseif brush == "ascii" then
+    local character = generateByte()
+
+    local x = generateByte()
+    local y = generateByte()
+
+    local angleSize = generateByte()
+
+    local redGreen = generateByte()
+    local blueAlpha = generateByte()
+
+    return {character, x, y, angleSize, redGreen, blueAlpha}
   else
     assert(false)
   end
@@ -207,6 +219,11 @@ function love.load(arg)
   end
 
   triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
+  fonts = {}
+
+  for size = 1, 15 do
+    fonts[size] = love.graphics.newFont(512 * size / 15)
+  end
 end
 
 local function drawSceneToCanvas(scene, canvas)
@@ -214,9 +231,10 @@ local function drawSceneToCanvas(scene, canvas)
   love.graphics.clear()
   love.graphics.setBlendMode("alpha")
   local width, height = canvas:getDimensions()
-  love.graphics.scale(width, height)
 
   if scene.brush == "circle" then
+    love.graphics.scale(width, height)
+
     for i, layer in ipairs(scene.layers) do
       local x, y, size, redGreen, blueAlpha = unpack(layer)
 
@@ -227,6 +245,8 @@ local function drawSceneToCanvas(scene, canvas)
       love.graphics.circle("fill", x / 255, y / 255, 0.5 * size / 255)
     end
   elseif scene.brush == "square" then
+    love.graphics.scale(width, height)
+
     for i, layer in ipairs(scene.layers) do
       local x, y, angle, size, redGreen, blueAlpha = unpack(layer)
 
@@ -248,6 +268,8 @@ local function drawSceneToCanvas(scene, canvas)
       love.graphics.pop()
     end
   elseif scene.brush == "shadedTriangle" then
+    love.graphics.scale(width, height)
+
     local vertices = {}
 
     for i, layer in ipairs(scene.layers) do
@@ -288,6 +310,38 @@ local function drawSceneToCanvas(scene, canvas)
 
     triangleMesh:setVertices(vertices)
     love.graphics.draw(triangleMesh)
+  elseif scene.brush == "ascii" then
+    for i, layer in ipairs(scene.layers) do
+      local character, x, y, angleSize, redGreen, blueAlpha = unpack(layer)
+
+      if character >= 32 and character <= 126 then
+        character = string.char(character)
+        local angle, size = splitByte(angleSize)
+
+        local red, green = splitByte(redGreen)
+        local blue, alpha = splitByte(blueAlpha)
+
+        local font = fonts[size]
+
+        if font then
+          love.graphics.setFont(font)
+
+          local characterWidth = font:getWidth(character)
+          local characterHeight = font:getHeight()
+
+          love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
+
+          love.graphics.print(
+            character, width * x / 255,
+            height * y / 255,
+            2 * pi * angle / 16,
+            1,
+            1,
+            0.5 * characterWidth,
+            0.5 * characterHeight)
+        end
+      end
+    end
   else
     assert(false)
   end
