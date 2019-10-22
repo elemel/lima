@@ -147,6 +147,38 @@ function generateLayer(brush)
     local blueAlpha = generateByte()
 
     return {character, x, y, angleSize, redGreen, blueAlpha}
+  elseif brush == "triangle" then
+    local x = random()
+    local y = random()
+
+    local angle1 = 2 * pi * random()
+    local angle2 = angle1 + 2 * pi / 3
+    local angle3 = angle1 + 4 * pi / 3
+
+    local radius = 0.5 * generateSize() / 255
+
+    local x1 = x + radius * cos(angle1)
+    local y1 = y + radius * sin(angle1)
+
+    local x2 = x + radius * cos(angle2)
+    local y2 = y + radius * sin(angle2)
+
+    local x3 = x + radius * cos(angle3)
+    local y3 = y + radius * sin(angle3)
+
+    x1 = floor(0.5 * (x1 + 0.5) * 256)
+    y1 = floor(0.5 * (y1 + 0.5) * 256)
+
+    x2 = floor(0.5 * (x2 + 0.5) * 256)
+    y2 = floor(0.5 * (y2 + 0.5) * 256)
+
+    x3 = floor(0.5 * (x3 + 0.5) * 256)
+    y3 = floor(0.5 * (y3 + 0.5) * 256)
+
+    local redGreen = generateByte()
+    local blueAlpha = generateByte()
+
+    return {x1, y1, x2, y2, x3, y3, redGreen, blueAlpha}
   else
     assert(false)
   end
@@ -215,7 +247,7 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generateScene("shadedTriangle", 256)
+    parent = generateScene("triangle", 256)
   end
 
   triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
@@ -342,6 +374,36 @@ local function drawSceneToCanvas(scene, canvas)
         end
       end
     end
+  elseif scene.brush == "triangle" then
+    local vertices = {}
+
+    for i, layer in ipairs(scene.layers) do
+      local x1, y1, x2, y2, x3, y3, redGreen, blueAlpha = unpack(layer)
+
+      x1 = (2 * x1 / 255 - 0.5) * width
+      y1 = (2 * y1 / 255 - 0.5) * height
+
+      x2 = (2 * x2 / 255 - 0.5) * width
+      y2 = (2 * y2 / 255 - 0.5) * height
+
+      x3 = (2 * x3 / 255 - 0.5) * width
+      y3 = (2 * y3 / 255 - 0.5) * height
+
+      local red, green = splitByte(redGreen)
+      local blue, alpha = splitByte(blueAlpha)
+
+      red = red / 15
+      green = green / 15
+      blue = blue / 15
+      alpha = alpha / 15
+
+      table.insert(vertices, {x1, y1, 0, 0, red, green, blue, alpha})
+      table.insert(vertices, {x2, y2, 0, 0, red, green, blue, alpha})
+      table.insert(vertices, {x3, y3, 0, 0, red, green, blue, alpha})
+    end
+
+    triangleMesh:setVertices(vertices)
+    love.graphics.draw(triangleMesh)
   else
     assert(false)
   end
