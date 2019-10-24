@@ -77,6 +77,13 @@ function generateSize()
   return bor(size, jitter)
 end
 
+function generateHalfSize()
+  local size = lshift(1, random(0, 3))
+  local mask = size - 1
+  local jitter = band(generateByte(), mask)
+  return bor(size, jitter)
+end
+
 function generateLayer(brush)
   if brush == "circle" then
     local x = generateByte()
@@ -197,32 +204,82 @@ function generateScene(brush, size)
   }
 end
 
-function mutateLayer(layer)
-  local i = random(1, #layer)
+function moveLayer(scene)
+  local i = random(1, #scene.layers)
+  local j = random(1, #scene.layers)
 
-  local upperHalf, lowerHalf = splitByte(layer[i])
+  local layer = table.remove(scene.layers, i)
+  table.insert(scene.layers, j, layer)
+end
 
-  if generateBoolean() then
-    upperHalf = generateByte()
+function replaceLayer(scene)
+  local i = random(1, #scene.layers)
+  local j = random(1, #scene.layers)
+
+  local layer = generateLayer(scene.brush)
+
+  table.remove(scene.layers, i)
+  table.insert(scene.layers, j, layer)
+end
+
+function mutatePosition(x, y)
+  local size = generateSize()
+
+  x = band(x + random(-size, size), 0xff)
+  y = band(y + random(-size, size), 0xff)
+
+  return x, y
+end
+
+function mutateHalfColor(redGreen, blueAlpha)
+  local red, green = splitByte(redGreen)
+  local blue, alpha = splitByte(blueAlpha)
+
+  local size = generateHalfSize()
+
+  if generateBoolean() or generateBoolean() then
+    red = band(red + random(-size, size), 0xf)
+    green = band(green + random(-size, size), 0xf)
+    blue = band(blue + random(-size, size), 0xf)
   else
-    lowerHalf = generateByte()
+    alpha = band(alpha + random(-size, size), 0xf)
   end
 
-  layer[i] = joinByte(upperHalf, lowerHalf)
+  return joinByte(red, green), joinByte(blue, alpha)
+end
+
+function mutateLayer(scene)
+  local i = random(1, #scene.layers)
+  layer = scene.layers[i]
+
+  if scene.brush == "shadedTriangle" then
+    local vertex = random(1, 3)
+
+    if generateBoolean() then
+      layer[4 * vertex - 3], layer[4 * vertex - 2] =
+        mutatePosition(layer[4 * vertex - 3], layer[4 * vertex - 2])
+    else
+      layer[4 * vertex - 1], layer[4 * vertex - 0] =
+        mutateHalfColor(layer[4 * vertex - 1], layer[4 * vertex - 0])
+    end
+  else
+    local sign = 2 * random(0, 1) - 1
+    local offset = sign * lshift(1, random(0, 7))
+
+    local j = random(1, #layer)
+    layer[j] = band(layer[j] + offset, 0xff)
+  end
 end
 
 function mutateScene(scene)
-  if generateBoolean() then
-    -- Replace layer
-    local i = random(1, #scene.layers)
-    local j = random(1, #scene.layers)
-    local layer = generateLayer(scene.brush)
-    table.remove(scene.layers, i)
-    table.insert(scene.layers, j, layer)
+  if generateBoolean() and generateBoolean() then
+    if generateBoolean() then
+      replaceLayer(scene)
+    else
+      moveLayer(scene)
+    end
   else
-    -- Mutate layer
-    local i = random(1, #scene.layers)
-    mutateLayer(scene.layers[i])
+    mutateLayer(scene)
   end
 end
 
@@ -247,7 +304,7 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generateScene("triangle", 256)
+    parent = generateScene("shadedTriangle", 256)
   end
 
   triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
