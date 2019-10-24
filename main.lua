@@ -304,7 +304,7 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generateScene("shadedTriangle", 256)
+    parent = generateScene("square", 256)
   end
 
   triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
@@ -319,11 +319,11 @@ local function drawSceneToCanvas(scene, canvas)
   love.graphics.setCanvas(canvas)
   love.graphics.clear()
   love.graphics.setBlendMode("alpha")
-  local width, height = canvas:getDimensions()
+
+  local canvasWidth, canvasHeight = canvas:getDimensions()
+  local canvasSize = sqrt(canvasWidth * canvasHeight)
 
   if scene.brush == "circle" then
-    love.graphics.scale(width, height)
-
     for i, layer in ipairs(scene.layers) do
       local x, y, size, redGreen, blueAlpha = unpack(layer)
 
@@ -331,34 +331,39 @@ local function drawSceneToCanvas(scene, canvas)
       local blue, alpha = splitByte(blueAlpha)
 
       love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
-      love.graphics.circle("fill", x / 255, y / 255, 0.5 * size / 255)
+
+      love.graphics.circle(
+        "fill",
+        x / 255 * canvasWidth,
+        y / 255 * canvasHeight,
+        0.5 * size / 255 * canvasSize)
     end
   elseif scene.brush == "square" then
-    love.graphics.scale(width, height)
-
     for i, layer in ipairs(scene.layers) do
       local x, y, angle, size, redGreen, blueAlpha = unpack(layer)
 
       local red, green = splitByte(redGreen)
       local blue, alpha = splitByte(blueAlpha)
 
+      local halfSize = 0.5 * size / 255 * canvasSize
+
       love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
 
       love.graphics.push()
+
+      love.graphics.translate(x / 255 * canvasWidth, y / 255 * canvasHeight)
       love.graphics.rotate(2 * pi * angle / 256)
 
-      love.graphics.rectangle(
+      love.graphics.polygon(
         "fill",
-        x / 255 - 0.5 * size / 255,
-        y / 255 - 0.5 * size / 255,
-        size / 255,
-        size / 255)
+        -halfSize, -halfSize,
+        halfSize, -halfSize,
+        halfSize, halfSize,
+        -halfSize, halfSize)
 
       love.graphics.pop()
     end
   elseif scene.brush == "shadedTriangle" then
-    love.graphics.scale(width, height)
-
     local vertices = {}
 
     for i, layer in ipairs(scene.layers) do
@@ -366,14 +371,14 @@ local function drawSceneToCanvas(scene, canvas)
         x2, y2, redGreen2, blueAlpha2,
         x3, y3, redGreen3, blueAlpha3 = unpack(layer)
 
-      x1 = 2 * x1 / 255 - 0.5
-      y1 = 2 * y1 / 255 - 0.5
+      x1 = (2 * x1 / 255 - 0.5) * canvasWidth
+      y1 = (2 * y1 / 255 - 0.5) * canvasHeight
 
-      x2 = 2 * x2 / 255 - 0.5
-      y2 = 2 * y2 / 255 - 0.5
+      x2 = (2 * x2 / 255 - 0.5) * canvasWidth
+      y2 = (2 * y2 / 255 - 0.5) * canvasHeight
 
-      x3 = 2 * x3 / 255 - 0.5
-      y3 = 2 * y3 / 255 - 0.5
+      x3 = (2 * x3 / 255 - 0.5) * canvasWidth
+      y3 = (2 * y3 / 255 - 0.5) * canvasHeight
 
       local red1, green1 = splitByte(redGreen1)
       local blue1, alpha1 = splitByte(blueAlpha1)
@@ -421,8 +426,8 @@ local function drawSceneToCanvas(scene, canvas)
           love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
 
           love.graphics.print(
-            character, width * x / 255,
-            height * y / 255,
+            character, canvasWidth * x / 255,
+            canvasHeight * y / 255,
             2 * pi * angle / 16,
             1,
             1,
@@ -437,14 +442,14 @@ local function drawSceneToCanvas(scene, canvas)
     for i, layer in ipairs(scene.layers) do
       local x1, y1, x2, y2, x3, y3, redGreen, blueAlpha = unpack(layer)
 
-      x1 = (2 * x1 / 255 - 0.5) * width
-      y1 = (2 * y1 / 255 - 0.5) * height
+      x1 = (2 * x1 / 255 - 0.5) * canvasWidth
+      y1 = (2 * y1 / 255 - 0.5) * canvasHeight
 
-      x2 = (2 * x2 / 255 - 0.5) * width
-      y2 = (2 * y2 / 255 - 0.5) * height
+      x2 = (2 * x2 / 255 - 0.5) * canvasWidth
+      y2 = (2 * y2 / 255 - 0.5) * canvasHeight
 
-      x3 = (2 * x3 / 255 - 0.5) * width
-      y3 = (2 * y3 / 255 - 0.5) * height
+      x3 = (2 * x3 / 255 - 0.5) * canvasWidth
+      y3 = (2 * y3 / 255 - 0.5) * canvasHeight
 
       local red, green = splitByte(redGreen)
       local blue, alpha = splitByte(blueAlpha)
