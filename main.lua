@@ -283,38 +283,6 @@ function mutateScene(scene)
   end
 end
 
-function love.load(arg)
-  if #arg ~= 3 or arg[1] ~= "evolve" then
-    print("Usage: love . evolve <source> <target>")
-    love.event.quit(1)
-    return
-  end
-
-  _, sourceFilename, targetFilename = unpack(arg)
-
-  love.window.setTitle("Lima")
-  love.window.setMode(1024, 512)
-  referenceImageData = love.image.newImageData(sourceFilename)
-  referenceImage = love.graphics.newImage(referenceImageData)
-
-  print("Loading...")
-  local success, result = loadScene(targetFilename)
-
-  if success then
-    parent = result
-  else
-    print("Loading error: " .. result)
-    parent = generateScene("square", 256)
-  end
-
-  triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
-  fonts = {}
-
-  for size = 1, 15 do
-    fonts[size] = love.graphics.newFont(512 * size / 15)
-  end
-end
-
 local function drawSceneToCanvas(scene, canvas)
   love.graphics.setCanvas(canvas)
   love.graphics.clear()
@@ -497,23 +465,46 @@ local function getDistance(image1, image2)
   return totalDistance / (width1 * height1)
 end
 
-function love.draw()
-  if not canvas then
-    canvas = love.graphics.newCanvas(512, 512)
-    drawSceneToCanvas(parent, canvas)
-    local parentImageData = canvas:newImageData()
-    parentFitness = getDistance(parentImageData, referenceImageData)
-    parentImage = love.graphics.newImage(parentImageData)
-    print("Fitness: " .. parentFitness)
+function love.load(arg)
+  if #arg ~= 3 or arg[1] ~= "evolve" then
+    print("Usage: love . evolve <source> <target>")
+    love.event.quit(1)
+    return
   end
 
-  love.graphics.reset()
-  love.graphics.setColor(1, 1, 1, 1)
-  love.graphics.setBlendMode("alpha")
-  love.graphics.draw(referenceImage, 0, 0)
-  love.graphics.setBlendMode("alpha", "premultiplied")
-  love.graphics.draw(parentImage, 512, 0)
+  _, sourceFilename, targetFilename = unpack(arg)
 
+  love.window.setTitle("Lima")
+  love.window.setMode(1024, 512)
+  referenceImageData = love.image.newImageData(sourceFilename)
+  referenceImage = love.graphics.newImage(referenceImageData)
+
+  print("Loading...")
+  local success, result = loadScene(targetFilename)
+
+  if success then
+    parent = result
+  else
+    print("Loading error: " .. result)
+    parent = generateScene("square", 256)
+  end
+
+  triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
+  fonts = {}
+
+  for size = 1, 15 do
+    fonts[size] = love.graphics.newFont(512 * size / 15)
+  end
+
+  canvas = love.graphics.newCanvas(512, 512)
+  drawSceneToCanvas(parent, canvas)
+  local parentImageData = canvas:newImageData()
+  parentFitness = getDistance(parentImageData, referenceImageData)
+  parentImage = love.graphics.newImage(parentImageData)
+  print("Fitness: " .. parentFitness)
+end
+
+function love.update(dt)
   local child = cloneScene(parent)
   mutateScene(child)
 
@@ -529,6 +520,15 @@ function love.draw()
     print("Fitness: " .. parentFitness)
     saveScene(parent, targetFilename)
   end
+end
+
+function love.draw()
+  love.graphics.reset()
+  love.graphics.setColor(1, 1, 1, 1)
+  love.graphics.setBlendMode("alpha")
+  love.graphics.draw(referenceImage, 0, 0)
+  love.graphics.setBlendMode("alpha", "premultiplied")
+  love.graphics.draw(parentImage, 512, 0)
 end
 
 function love.quit()
