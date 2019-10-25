@@ -9,14 +9,14 @@ local rshift = bit.rshift
 local sin = math.sin
 local sqrt = math.sqrt
 
-function splitByte(byte)
+function unpackHalfBytes(byte)
   local upperHalf = rshift(band(byte, 0xf0), 4)
   local lowerHalf = band(byte, 0xf)
 
   return upperHalf, lowerHalf
 end
 
-function joinByte(upperHalf, lowerHalf)
+function packHalfBytes(upperHalf, lowerHalf)
   upperHalf = band(upperHalf, 0xf)
   lowerHalf = band(lowerHalf, 0xf)
 
@@ -232,8 +232,8 @@ function mutatePosition(x, y)
 end
 
 function mutateHalfColor(redGreen, blueAlpha)
-  local red, green = splitByte(redGreen)
-  local blue, alpha = splitByte(blueAlpha)
+  local red, green = unpackHalfBytes(redGreen)
+  local blue, alpha = unpackHalfBytes(blueAlpha)
 
   local size = generateHalfSize()
 
@@ -245,7 +245,7 @@ function mutateHalfColor(redGreen, blueAlpha)
     alpha = band(alpha + random(-size, size), 0xf)
   end
 
-  return joinByte(red, green), joinByte(blue, alpha)
+  return packHalfBytes(red, green), packHalfBytes(blue, alpha)
 end
 
 function mutateLayer(scene)
@@ -295,8 +295,8 @@ local function drawSceneToCanvas(scene, canvas)
     for i, layer in ipairs(scene.layers) do
       local x, y, size, redGreen, blueAlpha = unpack(layer)
 
-      local red, green = splitByte(redGreen)
-      local blue, alpha = splitByte(blueAlpha)
+      local red, green = unpackHalfBytes(redGreen)
+      local blue, alpha = unpackHalfBytes(blueAlpha)
 
       love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
 
@@ -310,8 +310,8 @@ local function drawSceneToCanvas(scene, canvas)
     for i, layer in ipairs(scene.layers) do
       local x, y, angle, size, redGreen, blueAlpha = unpack(layer)
 
-      local red, green = splitByte(redGreen)
-      local blue, alpha = splitByte(blueAlpha)
+      local red, green = unpackHalfBytes(redGreen)
+      local blue, alpha = unpackHalfBytes(blueAlpha)
 
       local halfSize = 0.5 * size / 255 * canvasSize
 
@@ -348,14 +348,14 @@ local function drawSceneToCanvas(scene, canvas)
       x3 = (2 * x3 / 255 - 0.5) * canvasWidth
       y3 = (2 * y3 / 255 - 0.5) * canvasHeight
 
-      local red1, green1 = splitByte(redGreen1)
-      local blue1, alpha1 = splitByte(blueAlpha1)
+      local red1, green1 = unpackHalfBytes(redGreen1)
+      local blue1, alpha1 = unpackHalfBytes(blueAlpha1)
 
-      local red2, green2 = splitByte(redGreen2)
-      local blue2, alpha2 = splitByte(blueAlpha2)
+      local red2, green2 = unpackHalfBytes(redGreen2)
+      local blue2, alpha2 = unpackHalfBytes(blueAlpha2)
 
-      local red3, green3 = splitByte(redGreen3)
-      local blue3, alpha3 = splitByte(blueAlpha3)
+      local red3, green3 = unpackHalfBytes(redGreen3)
+      local blue3, alpha3 = unpackHalfBytes(blueAlpha3)
 
       table.insert(
         vertices,
@@ -378,10 +378,10 @@ local function drawSceneToCanvas(scene, canvas)
 
       if character >= 32 and character <= 126 then
         character = string.char(character)
-        local angle, size = splitByte(angleSize)
+        local angle, size = unpackHalfBytes(angleSize)
 
-        local red, green = splitByte(redGreen)
-        local blue, alpha = splitByte(blueAlpha)
+        local red, green = unpackHalfBytes(redGreen)
+        local blue, alpha = unpackHalfBytes(blueAlpha)
 
         local font = fonts[size]
 
@@ -419,8 +419,8 @@ local function drawSceneToCanvas(scene, canvas)
       x3 = (2 * x3 / 255 - 0.5) * canvasWidth
       y3 = (2 * y3 / 255 - 0.5) * canvasHeight
 
-      local red, green = splitByte(redGreen)
-      local blue, alpha = splitByte(blueAlpha)
+      local red, green = unpackHalfBytes(redGreen)
+      local blue, alpha = unpackHalfBytes(blueAlpha)
 
       red = red / 15
       green = green / 15
