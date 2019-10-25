@@ -9,6 +9,32 @@ local rshift = bit.rshift
 local sin = math.sin
 local sqrt = math.sqrt
 
+local brushes = {
+  "circle",
+  "square",
+  "shadedTriangle",
+  "ascii",
+  "triangle",
+}
+
+local strokeSizes = {
+  ascii = 6,
+  circle = 5,
+  square = 6,
+  shadedTriangle = 12,
+  triangle = 8,
+}
+
+function find(t, v)
+  for k, v2 in pairs(t) do
+    if v2 == v then
+      return k
+    end
+  end
+
+  return nil
+end
+
 function unpackHalfBytes(byte)
   local upperHalf = rshift(band(byte, 0xf0), 4)
   local lowerHalf = band(byte, 0xf)
@@ -23,25 +49,79 @@ function packHalfBytes(upperHalf, lowerHalf)
   return bor(lshift(upperHalf, 4), lowerHalf)
 end
 
+function readPainting(file)
+  local painting = {
+    strokes = {},
+  }
+
+  -- Magic
+  local magic = file:read(4)
+  assert(magic == "LIMA", "Invalid file magic")
+
+  -- Version
+  local version = love.data.unpack("B", file:read(1))
+  assert(version == 1, "Unsupported file version")
+
+  -- Brush
+  local brushIndex = love.data.unpack("B", file:read(1))
+  painting.brush = assert(brushes[brushIndex], "Invalid brush index")
+
+  -- Stroke count
+  local strokeCountUpper, strokeCountLower = love.data.unpack("BB", file:read(2))
+  local strokeCount = 256 * strokeCountUpper + strokeCountLower
+
+  -- Strokes
+
+  local strokeSize = assert(strokeSizes[painting.brush])
+  local strokeFormat = string.rep("B", strokeSize)
+
+  for i = 1, strokeCount do
+    painting.strokes[i] = {love.data.unpack(strokeFormat, file:read(#strokeFormat))}
+  end
+
+  return painting
+end
+
+function writePainting(painting, file)
+  file:write("LIMA") -- Magic
+  file:write(love.data.pack("string", "B", 1)) -- Version
+
+  -- Brush
+  local brushIndex = assert(find(brushes, painting.brush))
+  file:write(love.data.pack("string", "B", brushIndex))
+
+  -- Stroke count
+
+  local strokeCount = #painting.strokes
+
+  local strokeCountUpper = rshift(band(strokeCount, 0xff00), 8)
+  local strokeCountLower = band(strokeCount, 0xff)
+
+  file:write(love.data.pack("string", "BB", strokeCountUpper, strokeCountLower))
+
+  -- Strokes
+
+  local strokeSize = assert(strokeSizes[painting.brush])
+  local strokeFormat = string.rep("B", strokeSize)
+
+  for i = 1, strokeCount do
+    file:write(love.data.pack("string", strokeFormat, unpack(painting.strokes[i])))
+  end
+end
+
 function loadPainting(filename)
-  local success, result = pcall(dofile, targetFilename)
-  return success, result
+  local file = assert(io.open(filename, "rb"))
+  local success, result = pcall(readPainting, file)
+  file:close()
+  assert(success, result)
+  return result
 end
 
 function savePainting(painting, filename)
-  local file = io.open(filename, "w")
-  file:write("return {\n")
-  file:write("  brush = \"" .. painting.brush .. "\",\n")
-  file:write("\n")
-  file:write("  strokes = {\n")
-
-  for i, stroke in ipairs(painting.strokes) do
-    file:write("    {" .. table.concat(stroke, ", ") .. "},\n")
-  end
-
-  file:write("  },\n")
-  file:write("}\n")
+  local file = io.open(filename, "wb")
+  local success, result = pcall(writePainting, painting, file)
   file:close()
+  assert(success, result)
 end
 
 function clonePainting(painting)
@@ -475,13 +555,13 @@ function love.load(arg)
   referenceImage = love.graphics.newImage(referenceImageData)
 
   print("Loading...")
-  local success, result = loadPainting(targetFilename)
+  local success, result = pcall(loadPainting, targetFilename)
 
   if success then
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generatePainting("square", 256)
+    parent = generatePainting("shadedTriangle", 256)
   end
 
   triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
