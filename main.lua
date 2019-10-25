@@ -25,11 +25,6 @@ end
 
 function loadPainting(filename)
   local success, result = pcall(dofile, targetFilename)
-
-  if success then
-    result.brush = result.brush or "circle"
-  end
-
   return success, result
 end
 
@@ -38,10 +33,10 @@ function savePainting(painting, filename)
   file:write("return {\n")
   file:write("  brush = \"" .. painting.brush .. "\",\n")
   file:write("\n")
-  file:write("  layers = {\n")
+  file:write("  strokes = {\n")
 
-  for i, layer in ipairs(painting.layers) do
-    file:write("    {" .. table.concat(layer, ", ") .. "},\n")
+  for i, stroke in ipairs(painting.strokes) do
+    file:write("    {" .. table.concat(stroke, ", ") .. "},\n")
   end
 
   file:write("  },\n")
@@ -50,15 +45,15 @@ function savePainting(painting, filename)
 end
 
 function clonePainting(painting)
-  local layers = {}
+  local strokes = {}
 
-  for i, layer in ipairs(painting.layers) do
-    layers[i] = {unpack(layer)}
+  for i, stroke in ipairs(painting.strokes) do
+    strokes[i] = {unpack(stroke)}
   end
 
   return {
     brush = painting.brush,
-    layers = layers,
+    strokes = strokes,
   }
 end
 
@@ -84,7 +79,7 @@ function generateHalfSize()
   return bor(size, jitter)
 end
 
-function generateLayer(brush)
+function generateStroke(brush)
   if brush == "circle" then
     local x = generateByte()
     local y = generateByte()
@@ -192,34 +187,34 @@ function generateLayer(brush)
 end
 
 function generatePainting(brush, size)
-  local layers = {}
+  local strokes = {}
 
   for i = 1, size do
-    layers[i] = generateLayer(brush)
+    strokes[i] = generateStroke(brush)
   end
 
   return {
     brush = brush,
-    layers = layers,
+    strokes = strokes,
   }
 end
 
-function moveLayer(painting)
-  local i = random(1, #painting.layers)
-  local j = random(1, #painting.layers)
+function moveStroke(painting)
+  local i = random(1, #painting.strokes)
+  local j = random(1, #painting.strokes)
 
-  local layer = table.remove(painting.layers, i)
-  table.insert(painting.layers, j, layer)
+  local stroke = table.remove(painting.strokes, i)
+  table.insert(painting.strokes, j, stroke)
 end
 
-function replaceLayer(painting)
-  local i = random(1, #painting.layers)
-  local j = random(1, #painting.layers)
+function replaceStroke(painting)
+  local i = random(1, #painting.strokes)
+  local j = random(1, #painting.strokes)
 
-  local layer = generateLayer(painting.brush)
+  local stroke = generateStroke(painting.brush)
 
-  table.remove(painting.layers, i)
-  table.insert(painting.layers, j, layer)
+  table.remove(painting.strokes, i)
+  table.insert(painting.strokes, j, stroke)
 end
 
 function mutatePosition(x, y)
@@ -248,38 +243,38 @@ function mutateHalfColor(redGreen, blueAlpha)
   return packHalfBytes(red, green), packHalfBytes(blue, alpha)
 end
 
-function mutateLayer(painting)
-  local i = random(1, #painting.layers)
-  layer = painting.layers[i]
+function mutateStroke(painting)
+  local i = random(1, #painting.strokes)
+  stroke = painting.strokes[i]
 
   if painting.brush == "shadedTriangle" then
     local vertex = random(1, 3)
 
     if generateBoolean() then
-      layer[4 * vertex - 3], layer[4 * vertex - 2] =
-        mutatePosition(layer[4 * vertex - 3], layer[4 * vertex - 2])
+      stroke[4 * vertex - 3], stroke[4 * vertex - 2] =
+        mutatePosition(stroke[4 * vertex - 3], stroke[4 * vertex - 2])
     else
-      layer[4 * vertex - 1], layer[4 * vertex - 0] =
-        mutateHalfColor(layer[4 * vertex - 1], layer[4 * vertex - 0])
+      stroke[4 * vertex - 1], stroke[4 * vertex - 0] =
+        mutateHalfColor(stroke[4 * vertex - 1], stroke[4 * vertex - 0])
     end
   else
     local sign = 2 * random(0, 1) - 1
     local offset = sign * lshift(1, random(0, 7))
 
-    local j = random(1, #layer)
-    layer[j] = band(layer[j] + offset, 0xff)
+    local j = random(1, #stroke)
+    stroke[j] = band(stroke[j] + offset, 0xff)
   end
 end
 
 function mutatePainting(painting)
   if generateBoolean() and generateBoolean() then
     if generateBoolean() then
-      replaceLayer(painting)
+      replaceStroke(painting)
     else
-      moveLayer(painting)
+      moveStroke(painting)
     end
   else
-    mutateLayer(painting)
+    mutateStroke(painting)
   end
 end
 
@@ -292,8 +287,8 @@ local function drawPaintingToCanvas(painting, canvas)
   local canvasSize = sqrt(canvasWidth * canvasHeight)
 
   if painting.brush == "circle" then
-    for i, layer in ipairs(painting.layers) do
-      local x, y, size, redGreen, blueAlpha = unpack(layer)
+    for i, stroke in ipairs(painting.strokes) do
+      local x, y, size, redGreen, blueAlpha = unpack(stroke)
 
       local red, green = unpackHalfBytes(redGreen)
       local blue, alpha = unpackHalfBytes(blueAlpha)
@@ -307,8 +302,8 @@ local function drawPaintingToCanvas(painting, canvas)
         0.5 * size / 255 * canvasSize)
     end
   elseif painting.brush == "square" then
-    for i, layer in ipairs(painting.layers) do
-      local x, y, angle, size, redGreen, blueAlpha = unpack(layer)
+    for i, stroke in ipairs(painting.strokes) do
+      local x, y, angle, size, redGreen, blueAlpha = unpack(stroke)
 
       local red, green = unpackHalfBytes(redGreen)
       local blue, alpha = unpackHalfBytes(blueAlpha)
@@ -334,10 +329,10 @@ local function drawPaintingToCanvas(painting, canvas)
   elseif painting.brush == "shadedTriangle" then
     local vertices = {}
 
-    for i, layer in ipairs(painting.layers) do
+    for i, stroke in ipairs(painting.strokes) do
       local x1, y1, redGreen1, blueAlpha1,
         x2, y2, redGreen2, blueAlpha2,
-        x3, y3, redGreen3, blueAlpha3 = unpack(layer)
+        x3, y3, redGreen3, blueAlpha3 = unpack(stroke)
 
       x1 = (2 * x1 / 255 - 0.5) * canvasWidth
       y1 = (2 * y1 / 255 - 0.5) * canvasHeight
@@ -373,8 +368,8 @@ local function drawPaintingToCanvas(painting, canvas)
     triangleMesh:setVertices(vertices)
     love.graphics.draw(triangleMesh)
   elseif painting.brush == "ascii" then
-    for i, layer in ipairs(painting.layers) do
-      local character, x, y, angleSize, redGreen, blueAlpha = unpack(layer)
+    for i, stroke in ipairs(painting.strokes) do
+      local character, x, y, angleSize, redGreen, blueAlpha = unpack(stroke)
 
       if character >= 32 and character <= 126 then
         character = string.char(character)
@@ -407,8 +402,8 @@ local function drawPaintingToCanvas(painting, canvas)
   elseif painting.brush == "triangle" then
     local vertices = {}
 
-    for i, layer in ipairs(painting.layers) do
-      local x1, y1, x2, y2, x3, y3, redGreen, blueAlpha = unpack(layer)
+    for i, stroke in ipairs(painting.strokes) do
+      local x1, y1, x2, y2, x3, y3, redGreen, blueAlpha = unpack(stroke)
 
       x1 = (2 * x1 / 255 - 0.5) * canvasWidth
       y1 = (2 * y1 / 255 - 0.5) * canvasHeight
