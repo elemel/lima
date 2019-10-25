@@ -23,7 +23,7 @@ function packHalfBytes(upperHalf, lowerHalf)
   return bor(lshift(upperHalf, 4), lowerHalf)
 end
 
-function loadScene(filename)
+function loadPainting(filename)
   local success, result = pcall(dofile, targetFilename)
 
   if success then
@@ -33,14 +33,14 @@ function loadScene(filename)
   return success, result
 end
 
-function saveScene(scene, filename)
+function savePainting(painting, filename)
   local file = io.open(filename, "w")
   file:write("return {\n")
-  file:write("  brush = \"" .. scene.brush .. "\",\n")
+  file:write("  brush = \"" .. painting.brush .. "\",\n")
   file:write("\n")
   file:write("  layers = {\n")
 
-  for i, layer in ipairs(scene.layers) do
+  for i, layer in ipairs(painting.layers) do
     file:write("    {" .. table.concat(layer, ", ") .. "},\n")
   end
 
@@ -49,15 +49,15 @@ function saveScene(scene, filename)
   file:close()
 end
 
-function cloneScene(scene)
+function clonePainting(painting)
   local layers = {}
 
-  for i, layer in ipairs(scene.layers) do
+  for i, layer in ipairs(painting.layers) do
     layers[i] = {unpack(layer)}
   end
 
   return {
-    brush = scene.brush,
+    brush = painting.brush,
     layers = layers,
   }
 end
@@ -191,7 +191,7 @@ function generateLayer(brush)
   end
 end
 
-function generateScene(brush, size)
+function generatePainting(brush, size)
   local layers = {}
 
   for i = 1, size do
@@ -204,22 +204,22 @@ function generateScene(brush, size)
   }
 end
 
-function moveLayer(scene)
-  local i = random(1, #scene.layers)
-  local j = random(1, #scene.layers)
+function moveLayer(painting)
+  local i = random(1, #painting.layers)
+  local j = random(1, #painting.layers)
 
-  local layer = table.remove(scene.layers, i)
-  table.insert(scene.layers, j, layer)
+  local layer = table.remove(painting.layers, i)
+  table.insert(painting.layers, j, layer)
 end
 
-function replaceLayer(scene)
-  local i = random(1, #scene.layers)
-  local j = random(1, #scene.layers)
+function replaceLayer(painting)
+  local i = random(1, #painting.layers)
+  local j = random(1, #painting.layers)
 
-  local layer = generateLayer(scene.brush)
+  local layer = generateLayer(painting.brush)
 
-  table.remove(scene.layers, i)
-  table.insert(scene.layers, j, layer)
+  table.remove(painting.layers, i)
+  table.insert(painting.layers, j, layer)
 end
 
 function mutatePosition(x, y)
@@ -248,11 +248,11 @@ function mutateHalfColor(redGreen, blueAlpha)
   return packHalfBytes(red, green), packHalfBytes(blue, alpha)
 end
 
-function mutateLayer(scene)
-  local i = random(1, #scene.layers)
-  layer = scene.layers[i]
+function mutateLayer(painting)
+  local i = random(1, #painting.layers)
+  layer = painting.layers[i]
 
-  if scene.brush == "shadedTriangle" then
+  if painting.brush == "shadedTriangle" then
     local vertex = random(1, 3)
 
     if generateBoolean() then
@@ -271,19 +271,19 @@ function mutateLayer(scene)
   end
 end
 
-function mutateScene(scene)
+function mutatePainting(painting)
   if generateBoolean() and generateBoolean() then
     if generateBoolean() then
-      replaceLayer(scene)
+      replaceLayer(painting)
     else
-      moveLayer(scene)
+      moveLayer(painting)
     end
   else
-    mutateLayer(scene)
+    mutateLayer(painting)
   end
 end
 
-local function drawSceneToCanvas(scene, canvas)
+local function drawPaintingToCanvas(painting, canvas)
   love.graphics.setCanvas(canvas)
   love.graphics.clear()
   love.graphics.setBlendMode("alpha")
@@ -291,8 +291,8 @@ local function drawSceneToCanvas(scene, canvas)
   local canvasWidth, canvasHeight = canvas:getDimensions()
   local canvasSize = sqrt(canvasWidth * canvasHeight)
 
-  if scene.brush == "circle" then
-    for i, layer in ipairs(scene.layers) do
+  if painting.brush == "circle" then
+    for i, layer in ipairs(painting.layers) do
       local x, y, size, redGreen, blueAlpha = unpack(layer)
 
       local red, green = unpackHalfBytes(redGreen)
@@ -306,8 +306,8 @@ local function drawSceneToCanvas(scene, canvas)
         y / 255 * canvasHeight,
         0.5 * size / 255 * canvasSize)
     end
-  elseif scene.brush == "square" then
-    for i, layer in ipairs(scene.layers) do
+  elseif painting.brush == "square" then
+    for i, layer in ipairs(painting.layers) do
       local x, y, angle, size, redGreen, blueAlpha = unpack(layer)
 
       local red, green = unpackHalfBytes(redGreen)
@@ -331,10 +331,10 @@ local function drawSceneToCanvas(scene, canvas)
 
       love.graphics.pop()
     end
-  elseif scene.brush == "shadedTriangle" then
+  elseif painting.brush == "shadedTriangle" then
     local vertices = {}
 
-    for i, layer in ipairs(scene.layers) do
+    for i, layer in ipairs(painting.layers) do
       local x1, y1, redGreen1, blueAlpha1,
         x2, y2, redGreen2, blueAlpha2,
         x3, y3, redGreen3, blueAlpha3 = unpack(layer)
@@ -372,8 +372,8 @@ local function drawSceneToCanvas(scene, canvas)
 
     triangleMesh:setVertices(vertices)
     love.graphics.draw(triangleMesh)
-  elseif scene.brush == "ascii" then
-    for i, layer in ipairs(scene.layers) do
+  elseif painting.brush == "ascii" then
+    for i, layer in ipairs(painting.layers) do
       local character, x, y, angleSize, redGreen, blueAlpha = unpack(layer)
 
       if character >= 32 and character <= 126 then
@@ -404,10 +404,10 @@ local function drawSceneToCanvas(scene, canvas)
         end
       end
     end
-  elseif scene.brush == "triangle" then
+  elseif painting.brush == "triangle" then
     local vertices = {}
 
-    for i, layer in ipairs(scene.layers) do
+    for i, layer in ipairs(painting.layers) do
       local x1, y1, x2, y2, x3, y3, redGreen, blueAlpha = unpack(layer)
 
       x1 = (2 * x1 / 255 - 0.5) * canvasWidth
@@ -480,13 +480,13 @@ function love.load(arg)
   referenceImage = love.graphics.newImage(referenceImageData)
 
   print("Loading...")
-  local success, result = loadScene(targetFilename)
+  local success, result = loadPainting(targetFilename)
 
   if success then
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generateScene("square", 256)
+    parent = generatePainting("square", 256)
   end
 
   triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
@@ -497,7 +497,7 @@ function love.load(arg)
   end
 
   canvas = love.graphics.newCanvas(512, 512)
-  drawSceneToCanvas(parent, canvas)
+  drawPaintingToCanvas(parent, canvas)
   local parentImageData = canvas:newImageData()
   parentFitness = getDistance(parentImageData, referenceImageData)
   parentImage = love.graphics.newImage(parentImageData)
@@ -505,10 +505,10 @@ function love.load(arg)
 end
 
 function love.update(dt)
-  local child = cloneScene(parent)
-  mutateScene(child)
+  local child = clonePainting(parent)
+  mutatePainting(child)
 
-  drawSceneToCanvas(child, canvas)
+  drawPaintingToCanvas(child, canvas)
   local childImageData = canvas:newImageData()
   local childFitness = getDistance(childImageData, referenceImageData)
 
@@ -518,7 +518,7 @@ function love.update(dt)
     parentImage = love.graphics.newImage(childImageData)
 
     print("Fitness: " .. parentFitness)
-    saveScene(parent, targetFilename)
+    savePainting(parent, targetFilename)
   end
 end
 
@@ -534,6 +534,6 @@ end
 function love.quit()
   if parent and targetFilename then
     print("Saving...")
-    saveScene(parent, targetFilename)
+    savePainting(parent, targetFilename)
   end
 end
