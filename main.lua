@@ -12,17 +12,15 @@ local sqrt = math.sqrt
 local brushes = {
   "circle",
   "square",
-  "shadedTriangle",
-  "ascii",
   "triangle",
+  "ascii",
 }
 
 local strokeSizes = {
   ascii = 6,
   circle = 5,
   square = 6,
-  shadedTriangle = 12,
-  triangle = 8,
+  triangle = 12,
 }
 
 function find(t, v)
@@ -181,7 +179,7 @@ function generateStroke(brush)
     local blueAlpha = generateByte()
 
     return {x, y, angle, size, redGreen, blueAlpha}
-  elseif brush == "shadedTriangle" then
+  elseif brush == "triangle" then
     local x = random()
     local y = random()
 
@@ -229,38 +227,6 @@ function generateStroke(brush)
     local blueAlpha = generateByte()
 
     return {character, x, y, angleSize, redGreen, blueAlpha}
-  elseif brush == "triangle" then
-    local x = random()
-    local y = random()
-
-    local angle1 = 2 * pi * random()
-    local angle2 = angle1 + 2 * pi / 3
-    local angle3 = angle1 + 4 * pi / 3
-
-    local radius = 0.5 * generateSize() / 255
-
-    local x1 = x + radius * cos(angle1)
-    local y1 = y + radius * sin(angle1)
-
-    local x2 = x + radius * cos(angle2)
-    local y2 = y + radius * sin(angle2)
-
-    local x3 = x + radius * cos(angle3)
-    local y3 = y + radius * sin(angle3)
-
-    x1 = floor(0.5 * (x1 + 0.5) * 256)
-    y1 = floor(0.5 * (y1 + 0.5) * 256)
-
-    x2 = floor(0.5 * (x2 + 0.5) * 256)
-    y2 = floor(0.5 * (y2 + 0.5) * 256)
-
-    x3 = floor(0.5 * (x3 + 0.5) * 256)
-    y3 = floor(0.5 * (y3 + 0.5) * 256)
-
-    local redGreen = generateByte()
-    local blueAlpha = generateByte()
-
-    return {x1, y1, x2, y2, x3, y3, redGreen, blueAlpha}
   else
     assert(false)
   end
@@ -291,43 +257,56 @@ function replaceStroke(painting)
   local i = random(1, #painting.strokes)
   local j = random(1, #painting.strokes)
 
-  local stroke = generateStroke(painting.brush)
-
   table.remove(painting.strokes, i)
+  local stroke = generateStroke(painting.brush)
   table.insert(painting.strokes, j, stroke)
 end
 
 function mutatePosition(x, y)
   local size = generateSize()
 
-  x = band(x + random(-size, size), 0xff)
-  y = band(y + random(-size, size), 0xff)
+  if generateBoolean() then
+    x = band(x + random(-size, size), 0xff)
+  else
+    y = band(y + random(-size, size), 0xff)
+  end
 
   return x, y
 end
 
 function mutateHalfColor(redGreen, blueAlpha)
-  local red, green = unpackHalfBytes(redGreen)
-  local blue, alpha = unpackHalfBytes(blueAlpha)
-
   local size = generateHalfSize()
 
-  if generateBoolean() or generateBoolean() then
-    red = band(red + random(-size, size), 0xf)
-    green = band(green + random(-size, size), 0xf)
-    blue = band(blue + random(-size, size), 0xf)
+  if generateBoolean() then
+    local red, green = unpackHalfBytes(redGreen)
+
+    if generateBoolean() then
+      red = band(red + random(-size, size), 0xf)
+    else
+      green = band(green + random(-size, size), 0xf)
+    end
+
+    redGreen = packHalfBytes(red, green)
   else
-    alpha = band(alpha + random(-size, size), 0xf)
+    local blue, alpha = unpackHalfBytes(blueAlpha)
+
+    if generateBoolean() then
+      blue = band(blue + random(-size, size), 0xf)
+    else
+      alpha = band(alpha + random(-size, size), 0xf)
+    end
+
+    blueAlpha = packHalfBytes(blue, alpha)
   end
 
-  return packHalfBytes(red, green), packHalfBytes(blue, alpha)
+  return redGreen, blueAlpha
 end
 
 function mutateStroke(painting)
   local i = random(1, #painting.strokes)
   stroke = painting.strokes[i]
 
-  if painting.brush == "shadedTriangle" then
+  if painting.brush == "triangle" then
     local vertex = random(1, 3)
 
     if generateBoolean() then
@@ -347,15 +326,17 @@ function mutateStroke(painting)
 end
 
 function mutatePainting(painting)
-  if generateBoolean() and generateBoolean() then
+  repeat
     if generateBoolean() then
-      replaceStroke(painting)
+      mutateStroke(painting)
     else
-      moveStroke(painting)
+      if generateBoolean() then
+        moveStroke(painting)
+      else
+        replaceStroke(painting)
+      end
     end
-  else
-    mutateStroke(painting)
-  end
+  until generateBoolean()
 end
 
 local function drawPaintingToCanvas(painting, canvas)
@@ -406,7 +387,7 @@ local function drawPaintingToCanvas(painting, canvas)
 
       love.graphics.pop()
     end
-  elseif painting.brush == "shadedTriangle" then
+  elseif painting.brush == "triangle" then
     local vertices = {}
 
     for i, stroke in ipairs(painting.strokes) do
@@ -479,36 +460,6 @@ local function drawPaintingToCanvas(painting, canvas)
         end
       end
     end
-  elseif painting.brush == "triangle" then
-    local vertices = {}
-
-    for i, stroke in ipairs(painting.strokes) do
-      local x1, y1, x2, y2, x3, y3, redGreen, blueAlpha = unpack(stroke)
-
-      x1 = (2 * x1 / 255 - 0.5) * canvasWidth
-      y1 = (2 * y1 / 255 - 0.5) * canvasHeight
-
-      x2 = (2 * x2 / 255 - 0.5) * canvasWidth
-      y2 = (2 * y2 / 255 - 0.5) * canvasHeight
-
-      x3 = (2 * x3 / 255 - 0.5) * canvasWidth
-      y3 = (2 * y3 / 255 - 0.5) * canvasHeight
-
-      local red, green = unpackHalfBytes(redGreen)
-      local blue, alpha = unpackHalfBytes(blueAlpha)
-
-      red = red / 15
-      green = green / 15
-      blue = blue / 15
-      alpha = alpha / 15
-
-      table.insert(vertices, {x1, y1, 0, 0, red, green, blue, alpha})
-      table.insert(vertices, {x2, y2, 0, 0, red, green, blue, alpha})
-      table.insert(vertices, {x3, y3, 0, 0, red, green, blue, alpha})
-    end
-
-    triangleMesh:setVertices(vertices)
-    love.graphics.draw(triangleMesh)
   else
     assert(false)
   end
@@ -541,16 +492,17 @@ local function getDistance(image1, image2)
 end
 
 function love.load(arg)
-  if #arg ~= 3 or arg[1] ~= "evolve" then
+  love.filesystem.setIdentity("lima")
+
+  if #arg ~= 3 or (arg[1] ~= "evolve" and arg[1] ~= "rasterize") then
     print("Usage: love . evolve <source> <target>")
+    print("       love . rasterize <source> <target>")
     love.event.quit(1)
     return
   end
 
   _, sourceFilename, targetFilename = unpack(arg)
 
-  love.window.setTitle("Lima")
-  love.window.setMode(1024, 512)
   referenceImageData = love.image.newImageData(sourceFilename)
   referenceImage = love.graphics.newImage(referenceImageData)
 
@@ -561,17 +513,18 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generatePainting("shadedTriangle", 256)
+    parent = generatePainting("triangle", 256)
   end
 
   triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
+  print(triangleMesh)
   fonts = {}
 
   for size = 1, 15 do
     fonts[size] = love.graphics.newFont(512 * size / 15)
   end
 
-  canvas = love.graphics.newCanvas(512, 512)
+  canvas = love.graphics.newCanvas(512, 512, {msaa = 4})
   drawPaintingToCanvas(parent, canvas)
   local parentImageData = canvas:newImageData()
   parentFitness = getDistance(parentImageData, referenceImageData)
@@ -610,5 +563,14 @@ function love.quit()
   if parent and targetFilename then
     print("Saving...")
     savePainting(parent, targetFilename)
+  end
+end
+
+function love.keypressed(key, scancode, isrepeat)
+  if key == "return" then
+    local filename = "screenshot-" .. os.time() .. ".png"
+    love.graphics.captureScreenshot(filename)
+    local directory = love.filesystem.getSaveDirectory()
+    print("Saved screenshot: " .. directory .. "/" .. filename)
   end
 end
