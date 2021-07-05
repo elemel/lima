@@ -1,13 +1,19 @@
-local band = bit.band
-local bor = bit.bor
-local cos = math.cos
-local floor = math.floor
-local lshift = bit.lshift
-local pi = math.pi
-local random = love.math.random
-local rshift = bit.rshift
-local sin = math.sin
-local sqrt = math.sqrt
+local band = assert(bit.band)
+local bor = assert(bit.bor)
+local bnot = assert(bit.bnot)
+local bxor = assert(bit.bxor)
+local cos = assert(math.cos)
+local floor = assert(math.floor)
+local insert = assert(table.insert)
+local lshift = assert(bit.lshift)
+local max = assert(math.max)
+local min = assert(math.min)
+local pi = assert(math.pi)
+local random = assert(love.math.random)
+local remove = assert(table.remove)
+local rshift = assert(bit.rshift)
+local sin = assert(math.sin)
+local sqrt = assert(assert(math.sqrt))
 
 local brushes = {
   "circle",
@@ -31,6 +37,17 @@ function find(t, v)
   end
 
   return nil
+end
+
+function shuffle(t)
+  for i = 1, #t - 1 do
+    local j = random(i, #t)
+    t[i], t[j] = t[j], t[i]
+  end
+end
+
+function clamp(x, x1, x2)
+  return min(max(x, x1), x2)
 end
 
 function unpackHalfBytes(byte)
@@ -143,43 +160,8 @@ function generateByte()
   return random(0, 255)
 end
 
-function generateSize()
-  local size = lshift(1, random(0, 7))
-  local mask = size - 1
-  local jitter = band(generateByte(), mask)
-  return bor(size, jitter)
-end
-
-function generateHalfSize()
-  local size = lshift(1, random(0, 3))
-  local mask = size - 1
-  local jitter = band(generateByte(), mask)
-  return bor(size, jitter)
-end
-
 function generateStroke(brush)
-  if brush == "circle" then
-    local x = generateByte()
-    local y = generateByte()
-
-    local size = generateSize()
-
-    local redGreen = generateByte()
-    local blueAlpha = generateByte()
-
-    return {x, y, size, redGreen, blueAlpha}
-  elseif brush == "square" then
-    local x = generateByte()
-    local y = generateByte()
-
-    local angle = generateByte()
-    local size = generateSize()
-
-    local redGreen = generateByte()
-    local blueAlpha = generateByte()
-
-    return {x, y, angle, size, redGreen, blueAlpha}
-  elseif brush == "triangle" then
+  if brush == "triangle" then
     local x = random()
     local y = random()
 
@@ -187,7 +169,7 @@ function generateStroke(brush)
     local angle2 = angle1 + 2 * pi / 3
     local angle3 = angle1 + 4 * pi / 3
 
-    local radius = 0.5 * generateSize() / 255
+    local radius = 0.5 * random()
 
     local x1 = x + radius * cos(angle1)
     local y1 = y + radius * sin(angle1)
@@ -198,14 +180,14 @@ function generateStroke(brush)
     local x3 = x + radius * cos(angle3)
     local y3 = y + radius * sin(angle3)
 
-    x1 = floor(0.5 * (x1 + 0.5) * 256)
-    y1 = floor(0.5 * (y1 + 0.5) * 256)
+    x1 = clamp(floor(0.5 * (x1 + 0.5) * 256), 0, 255)
+    y1 = clamp(floor(0.5 * (y1 + 0.5) * 256), 0, 255)
 
-    x2 = floor(0.5 * (x2 + 0.5) * 256)
-    y2 = floor(0.5 * (y2 + 0.5) * 256)
+    x2 = clamp(floor(0.5 * (x2 + 0.5) * 256), 0, 255)
+    y2 = clamp(floor(0.5 * (y2 + 0.5) * 256), 0, 255)
 
-    x3 = floor(0.5 * (x3 + 0.5) * 256)
-    y3 = floor(0.5 * (y3 + 0.5) * 256)
+    x3 = clamp(floor(0.5 * (x3 + 0.5) * 256), 0, 255)
+    y3 = clamp(floor(0.5 * (y3 + 0.5) * 256), 0, 255)
 
     local redGreen = generateByte()
     local blueAlpha = generateByte()
@@ -215,20 +197,14 @@ function generateStroke(brush)
       x2, y2, redGreen, blueAlpha,
       x3, y3, redGreen, blueAlpha,
     }
-  elseif brush == "ascii" then
-    local character = generateByte()
-
-    local x = generateByte()
-    local y = generateByte()
-
-    local angleSize = generateByte()
-
-    local redGreen = generateByte()
-    local blueAlpha = generateByte()
-
-    return {character, x, y, angleSize, redGreen, blueAlpha}
   else
-    assert(false)
+    local stroke = {}
+
+    for i = 1, strokeSizes[brush] do
+      stroke[i] = generateByte()
+    end
+
+    return stroke
   end
 end
 
@@ -245,98 +221,51 @@ function generatePainting(brush, size)
   }
 end
 
-function moveStroke(painting)
-  local i = random(1, #painting.strokes)
-  local j = random(1, #painting.strokes)
-
-  local stroke = table.remove(painting.strokes, i)
-  table.insert(painting.strokes, j, stroke)
-end
-
-function replaceStroke(painting)
-  local i = random(1, #painting.strokes)
-  local j = random(1, #painting.strokes)
-
-  table.remove(painting.strokes, i)
-  local stroke = generateStroke(painting.brush)
-  table.insert(painting.strokes, j, stroke)
-end
-
-function mutatePosition(x, y)
-  local size = generateSize()
+function mutateStroke(stroke)
+  local i = random(1, #stroke)
 
   if generateBoolean() then
-    x = band(x + random(-size, size), 0xff)
+    stroke[i] = generateByte()
   else
-    y = band(y + random(-size, size), 0xff)
-  end
-
-  return x, y
-end
-
-function mutateHalfColor(redGreen, blueAlpha)
-  local size = generateHalfSize()
-
-  if generateBoolean() then
-    local red, green = unpackHalfBytes(redGreen)
+    local upperHalf, lowerHalf = unpackHalfBytes(stroke[i])
 
     if generateBoolean() then
-      red = band(red + random(-size, size), 0xf)
+      upperHalf = generateByte()
     else
-      green = band(green + random(-size, size), 0xf)
+      lowerHalf = generateByte()
     end
 
-    redGreen = packHalfBytes(red, green)
-  else
-    local blue, alpha = unpackHalfBytes(blueAlpha)
-
-    if generateBoolean() then
-      blue = band(blue + random(-size, size), 0xf)
-    else
-      alpha = band(alpha + random(-size, size), 0xf)
-    end
-
-    blueAlpha = packHalfBytes(blue, alpha)
-  end
-
-  return redGreen, blueAlpha
-end
-
-function mutateStroke(painting)
-  local i = random(1, #painting.strokes)
-  stroke = painting.strokes[i]
-
-  if painting.brush == "triangle" then
-    local vertex = random(1, 3)
-
-    if generateBoolean() then
-      stroke[4 * vertex - 3], stroke[4 * vertex - 2] =
-        mutatePosition(stroke[4 * vertex - 3], stroke[4 * vertex - 2])
-    else
-      stroke[4 * vertex - 1], stroke[4 * vertex - 0] =
-        mutateHalfColor(stroke[4 * vertex - 1], stroke[4 * vertex - 0])
-    end
-  else
-    local sign = 2 * random(0, 1) - 1
-    local offset = sign * lshift(1, random(0, 7))
-
-    local j = random(1, #stroke)
-    stroke[j] = band(stroke[j] + offset, 0xff)
+    stroke[i] = packHalfBytes(upperHalf, lowerHalf)
   end
 end
 
 function mutatePainting(painting)
-  repeat
+  local strokes = painting.strokes
+
+  if generateBoolean() then
+    local i = random(1, #strokes)
+    mutateStroke(strokes[i])
+  else
     if generateBoolean() then
-      mutateStroke(painting)
+      local i = random(1, #strokes)
+      local j = random(1, #strokes)
+
+      local stroke = remove(strokes, i)
+      insert(strokes, j, stroke)
     else
+      local i = random(1, #strokes)
+      local j = random(1, #strokes)
+
+      remove(strokes, i)
+      local stroke = generateStroke(painting.brush)
+
       if generateBoolean() then
-        moveStroke(painting)
-      else
-        replaceStroke(painting)
+        j = #strokes
       end
+
+      insert(strokes, j, stroke)
     end
-  until generateBoolean()
+  end
 end
 
 local function drawPaintingToCanvas(painting, canvas)
@@ -413,15 +342,15 @@ local function drawPaintingToCanvas(painting, canvas)
       local red3, green3 = unpackHalfBytes(redGreen3)
       local blue3, alpha3 = unpackHalfBytes(blueAlpha3)
 
-      table.insert(
+      insert(
         vertices,
         {x1, y1, 0, 0, red1 / 15, green1 / 15, blue1 / 15, alpha1 / 15})
 
-      table.insert(
+      insert(
         vertices,
         {x2, y2, 0, 0, red2 / 15, green2 / 15, blue2 / 15, alpha2 / 15})
 
-      table.insert(
+      insert(
         vertices,
         {x3, y3, 0, 0, red3 / 15, green3 / 15, blue3 / 15, alpha3 / 15})
     end
@@ -513,7 +442,7 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generatePainting("triangle", 256)
+    parent = generatePainting("circle", 256)
   end
 
   triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
