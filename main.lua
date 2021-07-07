@@ -396,28 +396,21 @@ local function drawPaintingToCanvas(painting, canvas)
   love.graphics.setCanvas()
 end
 
-local function rms4(x, y, z, w)
-  return sqrt(0.25 * (x * x + y * y + z * z + w * w))
-end
+local function getFitness(image1, image2, fitnessCanvas)
+  love.graphics.push("all")
+  love.graphics.setShader(fitnessShader)
+  fitnessShader:send("referenceImage", image2)
+  love.graphics.setCanvas(fitnessCanvas)
+  love.graphics.setBlendMode("replace", "premultiplied")
+  love.graphics.draw(image1)
+  love.graphics.setCanvas()
+  love.graphics.setShader()
+  love.graphics.pop()
 
-local function getDistance(image1, image2)
-  local width1, height1 = image1:getDimensions()
-  local width2, height2 = image2:getDimensions()
-  assert(width1 == width2 and height1 == height2)
-
-  local totalDistance = 0
-
-  for y = 0, height1 - 1 do
-    for x = 0, width1 - 1 do
-      local r1, g1, b1, a1 = image1:getPixel(x, y)
-      local r2, g2, b2, a2 = image2:getPixel(x, y)
-
-      local distance = rms4(r2 - r1, g2 - g1, b2 - b1, a2 - a1)
-      totalDistance = totalDistance + distance
-    end
-  end
-
-  return totalDistance / (width1 * height1)
+  local data = fitnessCanvas:newImageData(1, 10, 0, 0, 1, 1)
+  local r, g, b, a = data:getPixel(0, 0)
+  data:release()
+  return sqrt(0.25 * (r + g + b + a))
 end
 
 function love.load(arg)
@@ -432,10 +425,7 @@ function love.load(arg)
 
   _, sourceFilename, targetFilename = unpack(arg)
 
-  referenceImageData = love.image.newImageData(sourceFilename)
-  referenceImage = love.graphics.newImage(referenceImageData)
-
-  print("Loading...")
+  print("Loading imitation...")
   local success, result = pcall(loadPainting, targetFilename)
 
   if success then
@@ -445,6 +435,9 @@ function love.load(arg)
     parent = generatePainting("triangle", 256)
   end
 
+  print("Loading reference...")
+  referenceImage = love.graphics.newImage(sourceFilename)
+
   triangleMesh = love.graphics.newMesh(3 * #parent.strokes, "triangles")
   fonts = {}
 
@@ -453,10 +446,33 @@ function love.load(arg)
   end
 
   canvas = love.graphics.newCanvas(512, 512, {msaa = 4})
+
+  fitnessCanvas = love.graphics.newCanvas(512, 512, {
+    format = "rgba32f",
+    mipmaps = "auto",
+  })
+
+  local fitnessPixelCode = [[
+    uniform Image referenceImage;
+
+    vec4 effect(vec4 color, Image imitationImage, vec2 textureCoords, vec2 screenCoords)
+    {
+      vec4 imitationColor = Texel(imitationImage, textureCoords);
+      vec4 referenceColor = Texel(referenceImage, textureCoords);
+      vec4 fitnessColor = referenceColor - imitationColor;
+      return fitnessColor * fitnessColor;
+    }
+  ]]
+
+  fitnessShader = love.graphics.newShader(fitnessPixelCode)
+
   drawPaintingToCanvas(parent, canvas)
+  parentFitness = getFitness(canvas, referenceImage, fitnessCanvas)
+
   local parentImageData = canvas:newImageData()
-  parentFitness = getDistance(parentImageData, referenceImageData)
   parentImage = love.graphics.newImage(parentImageData)
+  parentImageData:release()
+
   print("Fitness: " .. parentFitness)
 end
 
@@ -465,13 +481,16 @@ function love.update(dt)
   mutatePainting(child)
 
   drawPaintingToCanvas(child, canvas)
-  local childImageData = canvas:newImageData()
-  local childFitness = getDistance(childImageData, referenceImageData)
+  local childFitness = getFitness(canvas, referenceImage, fitnessCanvas)
 
   if childFitness < parentFitness then
     parent = child
     parentFitness = childFitness
-    parentImage = love.graphics.newImage(childImageData)
+
+    local parentImageData = canvas:newImageData()
+    parentImage:release()
+    parentImage = love.graphics.newImage(parentImageData)
+    parentImageData:release()
 
     print("Fitness: " .. parentFitness)
     savePainting(parent, targetFilename)
@@ -479,12 +498,15 @@ function love.update(dt)
 end
 
 function love.draw()
-  love.graphics.reset()
   love.graphics.setColor(1, 1, 1, 1)
   love.graphics.setBlendMode("alpha")
   love.graphics.draw(referenceImage, 0, 0)
   love.graphics.setBlendMode("alpha", "premultiplied")
   love.graphics.draw(parentImage, 512, 0)
+  love.graphics.setBlendMode("alpha")
+
+  local em = love.graphics.getFont():getWidth("M")
+  love.graphics.print("FPS: " .. love.timer.getFPS(), em, em)
 end
 
 function love.quit()
