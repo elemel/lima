@@ -169,7 +169,7 @@ function generateStroke(brush)
     local angle2 = angle1 + 2 * pi / 3
     local angle3 = angle1 + 4 * pi / 3
 
-    local radius = 0.5 * random()
+    local radius = 0.5 * random() ^ 2
 
     local x1 = x + radius * cos(angle1)
     local y1 = y + radius * sin(angle1)
@@ -289,7 +289,7 @@ local function drawPaintingToCanvas(painting, canvas)
         "fill",
         x / 255 * canvasWidth,
         y / 255 * canvasHeight,
-        0.5 * size / 255 * canvasSize)
+        0.5 * (size / 255) ^ 2 * canvasSize)
     end
   elseif painting.brush == "square" then
     for i, stroke in ipairs(painting.strokes) do
@@ -298,7 +298,7 @@ local function drawPaintingToCanvas(painting, canvas)
       local red, green = unpackHalfBytes(redGreen)
       local blue, alpha = unpackHalfBytes(blueAlpha)
 
-      local halfSize = 0.5 * size / 255 * canvasSize
+      local halfSize = 0.5 * (size / 255) ^ 2 * canvasSize
 
       love.graphics.setColor(red / 15, green / 15, blue / 15, alpha / 15)
 
@@ -442,11 +442,10 @@ function love.load(arg)
     parent = result
   else
     print("Loading error: " .. result)
-    parent = generatePainting("circle", 256)
+    parent = generatePainting("triangle", 256)
   end
 
-  triangleMesh = love.graphics.newMesh(3 * 256, "triangles")
-  print(triangleMesh)
+  triangleMesh = love.graphics.newMesh(3 * #parent.strokes, "triangles")
   fonts = {}
 
   for size = 1, 15 do
