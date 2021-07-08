@@ -26,7 +26,7 @@ local strokeSizes = {
   ascii = 6,
   circle = 5,
   square = 6,
-  triangle = 12,
+  triangle = 14,
 }
 
 function find(t, v)
@@ -75,7 +75,7 @@ function readPainting(file)
 
   -- Version
   local version = love.data.unpack("B", file:read(1))
-  assert(version == 1, "Unsupported file version")
+  assert(version == 2, "Unsupported file version")
 
   -- Brush
   local brushIndex = love.data.unpack("B", file:read(1))
@@ -99,7 +99,7 @@ end
 
 function writePainting(painting, file)
   file:write("LIMA") -- Magic
-  file:write(love.data.pack("string", "B", 1)) -- Version
+  file:write(love.data.pack("string", "B", 2)) -- Version
 
   -- Brush
   local brushIndex = assert(find(brushes, painting.brush))
@@ -162,40 +162,19 @@ end
 
 function generateStroke(brush)
   if brush == "triangle" then
-    local x = random()
-    local y = random()
+    local originRadius = generateByte()
+    local originAngle = generateByte()
 
-    local angle1 = 2 * pi * random()
-    local angle2 = angle1 + 2 * pi / 3
-    local angle3 = angle1 + 4 * pi / 3
-
-    local radius = 0.5 * random() ^ 2
-
-    local x1 = x + radius * cos(angle1)
-    local y1 = y + radius * sin(angle1)
-
-    local x2 = x + radius * cos(angle2)
-    local y2 = y + radius * sin(angle2)
-
-    local x3 = x + radius * cos(angle3)
-    local y3 = y + radius * sin(angle3)
-
-    x1 = clamp(floor(0.5 * (x1 + 0.5) * 256), 0, 255)
-    y1 = clamp(floor(0.5 * (y1 + 0.5) * 256), 0, 255)
-
-    x2 = clamp(floor(0.5 * (x2 + 0.5) * 256), 0, 255)
-    y2 = clamp(floor(0.5 * (y2 + 0.5) * 256), 0, 255)
-
-    x3 = clamp(floor(0.5 * (x3 + 0.5) * 256), 0, 255)
-    y3 = clamp(floor(0.5 * (y3 + 0.5) * 256), 0, 255)
-
+    local radius = generateByte()
+    local angle = generateByte()
     local redGreen = generateByte()
     local blueAlpha = generateByte()
 
     return {
-      x1, y1, redGreen, blueAlpha,
-      x2, y2, redGreen, blueAlpha,
-      x3, y3, redGreen, blueAlpha,
+      originRadius, originAngle,
+      radius, angle, redGreen, blueAlpha,
+      radius, angle, redGreen, blueAlpha,
+      radius, angle, redGreen, blueAlpha,
     }
   else
     local stroke = {}
@@ -319,40 +298,72 @@ local function drawPaintingToCanvas(painting, canvas)
   elseif painting.brush == "triangle" then
     local vertices = {}
 
+    local canvasCenterX = 0.5 * canvasWidth
+    local canvasCenterY = 0.5 * canvasHeight
+
+    local canvasRadius = 0.5 * sqrt(canvasWidth * canvasWidth + canvasHeight * canvasHeight)
+
     for i, stroke in ipairs(painting.strokes) do
-      local x1, y1, redGreen1, blueAlpha1,
-        x2, y2, redGreen2, blueAlpha2,
-        x3, y3, redGreen3, blueAlpha3 = unpack(stroke)
+      local originRadius, originAngle,
+        radius1, angle1, redGreen1, blueAlpha1,
+        radius2, angle2, redGreen2, blueAlpha2,
+        radius3, angle3, redGreen3, blueAlpha3 = unpack(stroke)
 
-      x1 = (2 * x1 / 255 - 0.5) * canvasWidth
-      y1 = (2 * y1 / 255 - 0.5) * canvasHeight
+      originRadius = (originRadius / 255) ^ 2 * canvasRadius
+      originAngle = (originAngle / 256) * 2 * pi
 
-      x2 = (2 * x2 / 255 - 0.5) * canvasWidth
-      y2 = (2 * y2 / 255 - 0.5) * canvasHeight
+      local originX = canvasCenterX + originRadius * cos(originAngle)
+      local originY = canvasCenterY + originRadius * sin(originAngle)
 
-      x3 = (2 * x3 / 255 - 0.5) * canvasWidth
-      y3 = (2 * y3 / 255 - 0.5) * canvasHeight
+      local originAngle1 = originAngle
+      local originAngle2 = originAngle + (1 / 3) * 2 * pi
+      local originAngle3 = originAngle + (2 / 3) * 2 * pi
+
+      radius1 = (radius1 / 255) ^ 2 * canvasRadius
+      angle1 = (angle1 / 256) * 2 * pi + originAngle1
+
+      radius2 = (radius2 / 255) ^ 2 * canvasRadius
+      angle2 = (angle2 / 256) * 2 * pi + originAngle2
+
+      radius3 = (radius3 / 255) ^ 2 * canvasRadius
+      angle3 = (angle3 / 256) * 2 * pi + originAngle3
+
+      x1 = originX + cos(angle1) * radius1
+      y1 = originY + sin(angle1) * radius1
+
+      x2 = originX + cos(angle2) * radius2
+      y2 = originY + sin(angle2) * radius2
+
+      x3 = originX + cos(angle3) * radius3
+      y3 = originY + sin(angle3) * radius3
 
       local red1, green1 = unpackHalfBytes(redGreen1)
       local blue1, alpha1 = unpackHalfBytes(blueAlpha1)
 
+      red1 = red1 / 15
+      green1 = green1 / 15
+      blue1 = blue1 / 15
+      alpha1 = alpha1 / 15
+
       local red2, green2 = unpackHalfBytes(redGreen2)
       local blue2, alpha2 = unpackHalfBytes(blueAlpha2)
+
+      red2 = red2 / 15
+      green2 = green2 / 15
+      blue2 = blue2 / 15
+      alpha2 = alpha2 / 15
 
       local red3, green3 = unpackHalfBytes(redGreen3)
       local blue3, alpha3 = unpackHalfBytes(blueAlpha3)
 
-      insert(
-        vertices,
-        {x1, y1, 0, 0, red1 / 15, green1 / 15, blue1 / 15, alpha1 / 15})
+      red3 = red3 / 15
+      green3 = green3 / 15
+      blue3 = blue3 / 15
+      alpha3 = alpha3 / 15
 
-      insert(
-        vertices,
-        {x2, y2, 0, 0, red2 / 15, green2 / 15, blue2 / 15, alpha2 / 15})
-
-      insert(
-        vertices,
-        {x3, y3, 0, 0, red3 / 15, green3 / 15, blue3 / 15, alpha3 / 15})
+      insert(vertices, {x1, y1, 0, 0, red1, green1, blue1, alpha1})
+      insert(vertices, {x2, y2, 0, 0, red2, green2, blue2, alpha2})
+      insert(vertices, {x3, y3, 0, 0, red3, green3, blue3, alpha3})
     end
 
     triangleMesh:setVertices(vertices)
