@@ -1,3 +1,5 @@
+local Individual = require("lima.Individual")
+
 local abs = assert(math.abs)
 local band = assert(bit.band)
 local bor = assert(bit.bor)
