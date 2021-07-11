@@ -453,22 +453,26 @@ function love.load(arg)
     return
   end
 
-  _, sourceFilename, targetFilename = unpack(arg)
+  individuals = {}
+  local individual = Individual.new()
+  insert(individuals, individual)
+
+  _, sourceFilename, individual.filename = unpack(arg)
 
   print("Loading imitation...")
-  local success, result = pcall(loadPainting, targetFilename)
+  local success, result = pcall(loadPainting, individual.filename)
 
   if success then
-    parent = result
+    individual.painting = result
   else
     print("Loading error: " .. result)
-    parent = generatePainting("triangle", 256)
+    individual.painting = generatePainting("triangle", 256)
   end
 
   print("Loading reference...")
   referenceImage = love.graphics.newImage(sourceFilename)
 
-  triangleMesh = love.graphics.newMesh(3 * #parent.strokes, "triangles")
+  triangleMesh = love.graphics.newMesh(3 * #individual.painting.strokes, "triangles")
   fonts = {}
 
   for size = 1, 15 do
@@ -496,34 +500,35 @@ function love.load(arg)
 
   fitnessShader = love.graphics.newShader(fitnessPixelCode)
 
-  drawPaintingToCanvas(parent, canvas)
-  parentFitness = getFitness(canvas, referenceImage, fitnessCanvas)
+  drawPaintingToCanvas(individual.painting, canvas)
+  individual.fitness = getFitness(canvas, referenceImage, fitnessCanvas)
 
   local parentImageData = canvas:newImageData()
   parentImage = love.graphics.newImage(parentImageData)
   parentImageData:release()
 
-  print("Fitness: " .. parentFitness)
+  print("Fitness: " .. individual.fitness)
 end
 
 function love.update(dt)
-  local child = clonePainting(parent)
+  local individual = individuals[1]
+  local child = clonePainting(individual.painting)
   mutatePainting(child)
 
   drawPaintingToCanvas(child, canvas)
   local childFitness = getFitness(canvas, referenceImage, fitnessCanvas)
 
-  if childFitness < parentFitness then
-    parent = child
-    parentFitness = childFitness
+  if childFitness < individual.fitness then
+    individual.painting = child
+    individual.fitness = childFitness
 
     local parentImageData = canvas:newImageData()
     parentImage:release()
     parentImage = love.graphics.newImage(parentImageData)
     parentImageData:release()
 
-    print("Fitness: " .. parentFitness)
-    savePainting(parent, targetFilename)
+    print("Fitness: " .. individual.fitness)
+    savePainting(individual.painting, individual.filename)
   end
 end
 
@@ -540,9 +545,11 @@ function love.draw()
 end
 
 function love.quit()
-  if parent and targetFilename then
+  local individual = individuals[1]
+
+  if individual.painting and individual.filename then
     print("Saving...")
-    savePainting(parent, targetFilename)
+    savePainting(individual.painting, individual.filename)
   end
 end
 
