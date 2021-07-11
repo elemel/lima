@@ -1,3 +1,4 @@
+local abs = assert(math.abs)
 local band = assert(bit.band)
 local bor = assert(bit.bor)
 local bnot = assert(bit.bnot)
@@ -62,6 +63,42 @@ function packHalfBytes(upperHalf, lowerHalf)
   lowerHalf = band(lowerHalf, 0xf)
 
   return bor(lshift(upperHalf, 4), lowerHalf)
+end
+
+-- See: http://love2d.org/wiki/HSL_color
+function toRgbFromHsl(h, s, l)
+  if s <= 0 then
+    return l, l, l
+  end
+
+  h, s, l = h * 6, s, l
+  local c = (1 - abs(2 * l - 1)) * s
+  local x = (1 - abs(h % 2 - 1)) * c
+  local m, r, g, b = (l - 0.5 * c), 0, 0, 0
+
+  if h < 1 then
+    r, g, b = c, x, 0
+  elseif h < 2 then
+    r, g, b = x, c, 0
+  elseif h < 3 then
+    r, g, b = 0, c, x
+  elseif h < 4 then
+    r, g, b = 0, x, c
+  elseif h < 5 then
+    r, g, b = x, 0, c
+  else
+    r, g, b = c, 0, x
+  end
+
+  return r + m, g + m, b + m
+end
+
+function toRgbaFromPackedHsla(hueSaturation, lightnessAlpha)
+  local hue, saturation = unpackHalfBytes(hueSaturation)
+  local lightness, alpha = unpackHalfBytes(lightnessAlpha)
+
+  local red, green, blue = toRgbFromHsl(hue / 16, saturation / 15, lightness / 15)
+  return red, green, blue, alpha / 15
 end
 
 function readPainting(file)
@@ -167,14 +204,14 @@ function generateStroke(brush)
 
     local radius = generateByte()
     local angle = generateByte()
-    local redGreen = generateByte()
-    local blueAlpha = generateByte()
+    local hueSaturation = generateByte()
+    local lightnessAlpha = generateByte()
 
     return {
       originRadius, originAngle,
-      radius, angle, redGreen, blueAlpha,
-      radius, angle, redGreen, blueAlpha,
-      radius, angle, redGreen, blueAlpha,
+      radius, angle, hueSaturation, lightnessAlpha,
+      radius, angle, hueSaturation, lightnessAlpha,
+      radius, angle, hueSaturation, lightnessAlpha,
     }
   else
     local stroke = {}
@@ -305,9 +342,9 @@ local function drawPaintingToCanvas(painting, canvas)
 
     for i, stroke in ipairs(painting.strokes) do
       local originRadius, originAngle,
-        radius1, angle1, redGreen1, blueAlpha1,
-        radius2, angle2, redGreen2, blueAlpha2,
-        radius3, angle3, redGreen3, blueAlpha3 = unpack(stroke)
+        radius1, angle1, hueSaturation1, lightnessAlpha1,
+        radius2, angle2, hueSaturation2, lightnessAlpha2,
+        radius3, angle3, hueSaturation3, lightnessAlpha3 = unpack(stroke)
 
       originRadius = (originRadius / 255) ^ 2 * canvasRadius
       originAngle = (originAngle / 256) * 2 * pi
@@ -337,29 +374,9 @@ local function drawPaintingToCanvas(painting, canvas)
       x3 = originX + cos(angle3) * radius3
       y3 = originY + sin(angle3) * radius3
 
-      local red1, green1 = unpackHalfBytes(redGreen1)
-      local blue1, alpha1 = unpackHalfBytes(blueAlpha1)
-
-      red1 = red1 / 15
-      green1 = green1 / 15
-      blue1 = blue1 / 15
-      alpha1 = alpha1 / 15
-
-      local red2, green2 = unpackHalfBytes(redGreen2)
-      local blue2, alpha2 = unpackHalfBytes(blueAlpha2)
-
-      red2 = red2 / 15
-      green2 = green2 / 15
-      blue2 = blue2 / 15
-      alpha2 = alpha2 / 15
-
-      local red3, green3 = unpackHalfBytes(redGreen3)
-      local blue3, alpha3 = unpackHalfBytes(blueAlpha3)
-
-      red3 = red3 / 15
-      green3 = green3 / 15
-      blue3 = blue3 / 15
-      alpha3 = alpha3 / 15
+      local red1, green1, blue1, alpha1 = toRgbaFromPackedHsla(hueSaturation1, lightnessAlpha1)
+      local red2, green2, blue2, alpha2 = toRgbaFromPackedHsla(hueSaturation2, lightnessAlpha2)
+      local red3, green3, blue3, alpha3 = toRgbaFromPackedHsla(hueSaturation3, lightnessAlpha3)
 
       insert(vertices, {x1, y1, 0, 0, red1, green1, blue1, alpha1})
       insert(vertices, {x2, y2, 0, 0, red2, green2, blue2, alpha2})
